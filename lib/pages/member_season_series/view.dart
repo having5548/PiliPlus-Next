@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
@@ -30,6 +31,16 @@ class SeasonSeriesPage extends StatefulWidget {
 class _SeasonSeriesPageState extends State<SeasonSeriesPage>
     with AutomaticKeepAliveClientMixin, GridMixin {
   late final SeasonSeriesController _controller;
+
+  // vertical cover cards like the official space page, not the H-card grid
+  @override
+  SliverGridDelegate get gridDelegate => SliverGridDelegateWithExtentAndRatio(
+    mainAxisSpacing: Style.cardSpace,
+    crossAxisSpacing: Style.cardSpace,
+    maxCrossAxisExtent: Grid.smallCardWidth * 1.5,
+    childAspectRatio: Style.aspectRatio,
+    mainAxisExtent: MediaQuery.textScalerOf(context).scale(78),
+  );
 
   @override
   void initState() {

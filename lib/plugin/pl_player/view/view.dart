@@ -49,6 +49,7 @@ import 'package:PiliPlus/plugin/pl_player/widgets/common_btn.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/forward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/mpv_convert_webp.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/play_pause_btn.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/volume_btn.dart';
 import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
@@ -418,6 +419,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     ) => switch (bottomControl) {
       /// 播放暂停
       BottomControlType.playOrPause => PlayOrPauseButton(
+        plPlayerController: plPlayerController,
+      ),
+
+      /// 音量
+      BottomControlType.volume => VolumeButton(
         plPlayerController: plPlayerController,
       ),
 
@@ -892,6 +898,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
     List<BottomControlType> userSpecifyItemLeft = [
       .playOrPause,
+      if (PlatformUtils.isDesktop) .volume,
       .time,
       if (!isNotFileSource || anySeason) ...[.pre, .next],
     ];
@@ -1012,16 +1019,16 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
         final double tapPosition = details.localFocalPoint.dx;
         final double sectionWidth = maxWidth / 3;
+        final bool isDesktop = PlatformUtils.isDesktop;
         if (tapPosition < sectionWidth) {
           if (!plPlayerController.enableSlideVolumeBrightness) {
             return;
           }
-          // 左边区域
-          if (PlatformUtils.isDesktop) {
-            _gestureType = .right;
-          } else {
-            _gestureType = .left;
+          // 左边区域(PC 禁用滑边亮度/音量)
+          if (isDesktop) {
+            return;
           }
+          _gestureType = .left;
         } else if (tapPosition < sectionWidth * 2) {
           if (!plPlayerController.enableSlideFS) {
             return;
@@ -1032,7 +1039,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           if (!plPlayerController.enableSlideVolumeBrightness) {
             return;
           }
-          // 右边区域
+          // 右边区域(PC 禁用滑边亮度/音量)
+          if (isDesktop) {
+            return;
+          }
           _gestureType = .right;
         }
       }
@@ -1302,8 +1312,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       if (dx > 3 * dy) {
         _onHorizontalDragStart();
         _gestureType = .horizontal;
-      } else if (dy > 3 * dx) {
-        _gestureType = .right;
+      } else if (dy > 3 * dx && !PlatformUtils.isDesktop) {
+        // 触摸板垂直滑动调音量仅限移动端触摸场景,PC 禁用
+        if (plPlayerController.enableSlideVolumeBrightness) {
+          _gestureType = .right;
+        }
       }
       return;
     }

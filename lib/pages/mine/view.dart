@@ -206,15 +206,7 @@ class _MediaPageState extends CommonPageState<MinePage>
                 icon: controller.themeType.value.icon,
               ),
             ),
-            IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '设置',
-              onPressed: () =>
-                  Get.toNamed('/setting', preventDuplicates: false),
-              icon: const Icon(Icons.settings_outlined),
-            ),
+            // settings entry moved to the desktop sidebar (main/view.dart)
             const SizedBox(width: 16),
           ],
         ),

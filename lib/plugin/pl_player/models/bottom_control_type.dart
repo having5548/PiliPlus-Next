@@ -1,5 +1,6 @@
 enum BottomControlType {
   playOrPause,
+  volume,
   pre,
   next,
   time,

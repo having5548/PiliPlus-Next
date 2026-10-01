@@ -83,12 +83,6 @@ List<SettingsModel> get playSettings => [
     setKey: SettingBoxKey.enableQuickDouble,
     defaultVal: true,
   ),
-  const SwitchModel(
-    title: '左右侧滑动调节亮度/音量',
-    leading: Icon(MdiIcons.tuneVerticalVariant),
-    setKey: SettingBoxKey.enableSlideVolumeBrightness,
-    defaultVal: true,
-  ),
   if (Platform.isAndroid)
     const SwitchModel(
       title: '调节系统亮度',

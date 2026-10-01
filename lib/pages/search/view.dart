@@ -70,19 +70,10 @@ class _SearchPageState extends State<SearchPage> {
           child: CustomScrollView(
             slivers: [
               if (_searchController.searchSuggestion) _buildSearchSuggest(),
-              if (isPortrait) ...[
-                ?trending,
-                _buildHistory,
-                ?rcmd,
-              ] else if (trending != null || rcmd != null)
-                SliverCrossAxisGroup(
-                  slivers: [
-                    SliverMainAxisGroup(slivers: [?trending, ?rcmd]),
-                    _buildHistory,
-                  ],
-                )
-              else
-                _buildHistory,
+              // trending on top, history below (unified for all orientations)
+              ?trending,
+              _buildHistory,
+              ?rcmd,
               SliverPadding(padding: .only(bottom: padding.bottom)),
             ],
           ),

@@ -898,38 +898,18 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     if (height > maxHeight) {
       return childSplit(Style.aspectRatio16x9);
     }
-    final introHeight = maxHeight - height - padding.top;
-    final showIntro =
-        videoDetailController.isUgc && videoDetailController.showRelatedVideo;
+    // player on the left only; intro moved to the right column as its own
+    // tab next to the reply panel (official desktop style)
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: videoWidth,
-              height: videoHeight,
-              child: videoPlayer(
-                width: videoWidth,
-                height: videoHeight,
-              ),
-            ),
-            if (!videoDetailController.isFileSource)
-              Offstage(
-                offstage: isFullScreen,
-                child: SizedBox(
-                  width: width,
-                  height: introHeight,
-                  child: videoIntro(
-                    width: width,
-                    height: introHeight,
-                    needRelated: false,
-                    needCtr: false,
-                  ),
-                ),
-              ),
-          ],
+        SizedBox(
+          width: videoWidth,
+          height: videoHeight,
+          child: videoPlayer(
+            width: videoWidth,
+            height: videoHeight,
+          ),
         ),
         Offstage(
           offstage: isFullScreen,
@@ -941,32 +921,15 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  buildTabBar(
-                    introText: '相关视频',
-                    showIntro: videoDetailController.isFileSource
-                        ? true
-                        : showIntro,
-                  ),
+                  buildTabBar(introText: '简介', showIntro: true),
                   Expanded(
                     child: tabBarView(
                       controller: videoDetailController.tabCtr,
                       children: [
                         if (videoDetailController.isFileSource)
                           localIntroPanel()
-                        else if (showIntro)
-                          KeepAliveWrapper(
-                            child: CustomScrollView(
-                              key: const PageStorageKey(CommonIntroController),
-                              controller:
-                                  videoDetailController.effectiveIntroScrollCtr,
-                              slivers: [
-                                RelatedVideoPanel(
-                                  key: videoRelatedKey,
-                                  heroTag: heroTag,
-                                ),
-                              ],
-                            ),
-                          ),
+                        else
+                          videoIntro(needCtr: false),
                         if (videoDetailController.showReply) videoReplyPanel(),
                         if (_shouldShowSeasonPanel) seasonPanel,
                       ],
