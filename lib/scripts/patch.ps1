@@ -210,7 +210,16 @@ $patches_material = @($ModalBarrierPatchMaterial, $NavigationDrawerPatchMaterial
                     $FABPatchMaterial, $TextFieldPatchMaterial, $ScaffoldPatchMaterial, $RefreshIndicatorPatchMaterial,
                     $TabsPatchMaterial)
 
-$PubCacheDir = "~/.pub-cache"
+# pub cache location depends on the host OS, not the target platform:
+# upstream CI builds android/ios on Linux (~/.pub-cache), but building any
+# target on Windows must use the Windows pub cache path.
+$PubCacheDir = if ($PSVersionTable.PSVersion.Major -ge 6 -and $IsWindows) {
+    "$env:LOCALAPPDATA/Pub/Cache"
+} elseif ($env:OS -eq "Windows_NT") {
+    "$env:LOCALAPPDATA/Pub/Cache"
+} else {
+    "~/.pub-cache"
+}
 
 switch ($platform.ToLower()) {
     "android" {
