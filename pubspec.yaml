@@ -21,7 +21,9 @@ version: 2.1.5+5416
 
 environment:
   sdk: ">=3.13.0"
-  flutter: 3.47.5
+  # allow the ohos flutter fork (3.47.5-ohos-x, a prerelease of 3.47.5)
+  # alongside upstream 3.47.5
+  flutter: ">=3.47.5-0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
