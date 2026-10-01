@@ -33,8 +33,7 @@ class _SeasonSeriesPageState extends State<SeasonSeriesPage>
   late final SeasonSeriesController _controller;
 
   // vertical cover cards like the official space page, not the H-card grid
-  @override
-  SliverGridDelegate get gridDelegate => SliverGridDelegateWithExtentAndRatio(
+  late final seasonGridDelegate = SliverGridDelegateWithExtentAndRatio(
     mainAxisSpacing: Style.cardSpace,
     crossAxisSpacing: Style.cardSpace,
     maxCrossAxisExtent: Grid.smallCardWidth * 1.5,
@@ -78,7 +77,7 @@ class _SeasonSeriesPageState extends State<SeasonSeriesPage>
       Success(:final response) =>
         response != null && response.isNotEmpty
             ? SliverGrid.builder(
-                gridDelegate: gridDelegate,
+                gridDelegate: seasonGridDelegate,
                 itemBuilder: (context, index) {
                   if (index == response.length - 1) {
                     _controller.onLoadMore();

@@ -7,8 +7,8 @@ import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
 mixin GridMixin {
-  // a getter so pages can override with other delegate types
-  SliverGridDelegate get gridDelegate => Grid.videoCardHDelegate();
+  // concrete type: material_ui exposes `layoutCache` on it (used by callers)
+  late final gridDelegate = Grid.videoCardHDelegate();
 
   Widget get gridSkeleton => SliverGrid(
     gridDelegate: gridDelegate,
