@@ -137,9 +137,20 @@ abstract final class ReplyHttp {
     }
   }
 
+  // process-level cache: the emote panel is rebuilt on every open and used to
+  // be served from a local snapshot; refetching on each open regressed #2422
+  static const int _emoteCacheTtl = 24 * 60 * 60 * 1000;
+  static int _emoteCacheAt = 0;
+  static List<Package>? _emoteCache;
+
   static Future<LoadingState<List<Package>?>> getEmoteList({
     String? business,
   }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cached = _emoteCache;
+    if (cached != null && now - _emoteCacheAt < _emoteCacheTtl) {
+      return Success(cached);
+    }
     final res = await Request().get(
       Api.myEmote,
       queryParameters: {
@@ -148,7 +159,10 @@ abstract final class ReplyHttp {
       },
     );
     if (res.data['code'] == 0) {
-      return Success(EmoteModelData.fromJson(res.data['data']).packages);
+      final packages = EmoteModelData.fromJson(res.data['data']).packages;
+      _emoteCache = packages;
+      _emoteCacheAt = now;
+      return Success(packages);
     } else {
       return Error(res.data['message']);
     }

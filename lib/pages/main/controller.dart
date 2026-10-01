@@ -259,18 +259,22 @@ class MainController extends GetxController
   }
 
   void checkUnread([bool shouldCheck = false]) {
-    if (accountService.isLogin.value &&
-        hasHome &&
-        msgBadgeMode != DynamicBadgeMode.hidden) {
-      if (shouldCheck &&
-          navigationBars[selectedIndex.value] != NavigationBarType.home) {
-        return;
-      }
-      int now = DateTime.now().millisecondsSinceEpoch;
-      if (now - lastCheckUnreadAt >= _period) {
-        lastCheckUnreadAt = now;
-        queryUnreadMsg();
-      }
+    if (!accountService.isLogin.value ||
+        !hasHome ||
+        msgBadgeMode == DynamicBadgeMode.hidden) {
+      // badge must be cleared as well when reminders are off or logged out,
+      // otherwise the last fetched count stays visible forever (#3049)
+      clearUnreadMsg();
+      return;
+    }
+    if (shouldCheck &&
+        navigationBars[selectedIndex.value] != NavigationBarType.home) {
+      return;
+    }
+    int now = DateTime.now().millisecondsSinceEpoch;
+    if (now - lastCheckUnreadAt >= _period) {
+      lastCheckUnreadAt = now;
+      queryUnreadMsg();
     }
   }
 

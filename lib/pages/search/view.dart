@@ -37,6 +37,12 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _searchController = Get.put(SSearchController(_tag), tag: _tag);
+    if (Get.arguments case {'autoFocus': true}) {
+      // launcher shortcut / deep link entry: show the keyboard immediately
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _searchController.searchFocusNode.requestFocus();
+      });
+    }
   }
 
   @override

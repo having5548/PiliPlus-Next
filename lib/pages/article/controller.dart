@@ -96,8 +96,12 @@ class ArticleController extends CommonDynController {
         return false;
       }
       opusData = response;
-      commentType = response.basic!.commentType!;
-      commentId = int.parse(response.basic!.commentIdStr!);
+      // some opus responses omit `basic` entirely; fall back to the values
+      // prepared in init() / the opus id instead of crashing (#3082)
+      final basic = response.basic;
+      commentType = basic?.commentType ?? commentType;
+      commentId =
+          int.tryParse(basic?.commentIdStr ?? '') ?? int.tryParse(id) ?? 0;
       if (showDynActionBar) {
         if (response.modules.moduleStat != null) {
           stats.value = response.modules.moduleStat;

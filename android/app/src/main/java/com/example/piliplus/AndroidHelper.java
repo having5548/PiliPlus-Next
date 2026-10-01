@@ -99,7 +99,10 @@ public final class AndroidHelper {
         ArrayList<String> cookiesList = new ArrayList<>(1);
         cookiesList.add(cookie);
         intent.putStringArrayListExtra("cookies", cookiesList);
-        getContext().startActivity(intent);
+        Context context = getContext();
+        if (intent.resolveActivity(context.getPackageManager()) != null) {
+            context.startActivity(intent);
+        }
     }
 
     public static void openLinkVerifySettings() {

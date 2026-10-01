@@ -1160,7 +1160,10 @@ class ReplyItemGrpc extends StatelessWidget {
                   withContent: ReportOptions.withContentReply,
                   contentRequired: ReportOptions.contentRequiredReply,
                   reportUrl:
-                      'https://www.bilibili.com/h5/comment/report?oid=$oid&pageType=${item.type}&rpid=$rpid&platform=android&build=8430300&${ThemeUtils.themeUrl(colorScheme.isDark)}',
+                      // no `platform=android&build=` here: the h5 report page
+                      // treats those as in-app context, its login bridge fails
+                      // in the embedded webview and loops back to login (#3036)
+                      'https://www.bilibili.com/h5/comment/report?oid=$oid&pageType=${item.type}&rpid=$rpid&${ThemeUtils.themeUrl(colorScheme.isDark)}',
                   (reasonType, reasonDesc, banUid) async {
                     final res = await ReplyHttp.report(
                       rpid: rpid,

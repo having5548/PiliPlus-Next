@@ -2,6 +2,8 @@
     package="com.example.piliplus">
 
     <queries>
+        <!-- comment antifraud companion app (biliSendCommAntifraud) -->
+        <package android:name="icu.freedomIntrovert.biliSendCommAntifraud" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.BROWSABLE" />

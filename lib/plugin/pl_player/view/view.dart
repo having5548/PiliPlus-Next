@@ -360,7 +360,16 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           value,
         );
       }
-    } catch (_) {}
+    } catch (_) {
+      // changing the system brightness needs the WRITE_SETTINGS special
+      // access which is rarely granted; fall back to the in-app brightness
+      // so the gesture keeps working (#2955)
+      try {
+        await ScreenBrightnessPlatform.instance.setApplicationScreenBrightness(
+          value,
+        );
+      } catch (_) {}
+    }
     _brightnessIndicator.value = true;
     _brightnessTimer?.cancel();
     _brightnessTimer = Timer(const Duration(milliseconds: 200), () {

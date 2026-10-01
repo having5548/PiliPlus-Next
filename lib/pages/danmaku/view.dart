@@ -70,8 +70,13 @@ class _PlDanmakuState extends State<PlDanmaku> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.notFullscreen != widget.notFullscreen &&
         !DanmakuOptions.sameFontScale) {
+      // keep the playback speed scale, otherwise entering/leaving fullscreen
+      // resets danmaku to 1x while the video stays at N x (#3136)
       _controller?.updateOption(
-        DanmakuOptions.get(notFullscreen: widget.notFullscreen),
+        DanmakuOptions.get(
+          notFullscreen: widget.notFullscreen,
+          speed: playerController.playbackSpeed,
+        ),
       );
     }
   }

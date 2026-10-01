@@ -62,7 +62,11 @@ class PlayUrlModel {
     final curHighestVideoQa = dash!.video!.first.quality.code;
     if (acceptQuality case final qualitys?
         when preferredQuality <= curHighestVideoQa) {
-      return qualitys.findClosestTarget((e) => e <= preferredQuality, max);
+      final below = qualitys.where((e) => e <= preferredQuality);
+      // no option at or below the preferred quality (e.g. 240p on a video
+      // whose lowest option is 360p): fall back to the closest available,
+      // i.e. the lowest, instead of jumping straight to the highest
+      return below.isNotEmpty ? below.reduce(max) : qualitys.reduce(min);
     } else {
       return curHighestVideoQa;
     }

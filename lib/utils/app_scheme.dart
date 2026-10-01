@@ -219,7 +219,7 @@ abstract final class PiliScheme {
               );
               return true;
             }
-            Get.toNamed('/search');
+            Get.toNamed('/search', arguments: {'autoFocus': true});
             return true;
           case 'article':
             // bilibili://article/40679479?jump_opus=1&jump_opus_type=1&opus_type=article&h5awaken=random
