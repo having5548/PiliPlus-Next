@@ -9,7 +9,7 @@
 ## About this fork
 
 - **Bug-fix first**: open issues from upstream are triaged (79 groups after deduplication) and fixed by priority — see [docs/BUGFIX.md](docs/BUGFIX.md)
-- **Three platforms only**: maintained targets are **Windows / Android / HarmonyOS (porting)**; iOS, macOS and Linux are no longer tracked
+- **Four platforms**: maintained targets are **Windows / Android / macOS / iOS**; Linux is no longer tracked
 - Please search existing issues and the triage list before filing a new one; duplicates will be merged
 
 ## License

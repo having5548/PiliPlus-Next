@@ -17,7 +17,8 @@
 PiliPlus 是使用 Flutter 开发的 BiliBili 第三方客户端。本分支在源项目基础上:
 
 - **Bug 修复优先**:对上游开放 issue 进行了系统分诊(去重后 79 组),按优先级逐个修复,清单与进度见 [docs/BUGFIX.md](docs/BUGFIX.md)
-- **聚焦三平台**:只维护 **Windows / Android / HarmonyOS(移植中)** 三个平台,不再跟进 iOS / macOS / Linux
+- **聚焦四平台**:维护 **Windows / Android / macOS / iOS** 四个平台,不再跟进 Linux
+- **桌面端界面重做**:仿官方的纯图标侧边栏(头像/首页/动态/搜索/消息/我的 + 设置等)、播放器音量按钮、视频页宽屏布局(左播放器/右简介+评论)
 - **避免重复反馈**:提交 issue 前请先搜索本清单与已有 issue,重复问题会被合并关闭
 
 ## 致谢(按时间顺序)
@@ -34,8 +35,9 @@ PiliPlus 是使用 Flutter 开发的 BiliBili 第三方客户端。本分支在�
 ## 适配平台
 
 - [x] Android
-- [x] Windows
-- [ ] HarmonyOS(移植中)
+- [x] Windows(Inno Setup 安装包)
+- [x] macOS(CI 构建 DMG)
+- [x] iOS(CI 构建未签名 ipa,供侧载)
 
 ## 主要功能
 
@@ -64,11 +66,12 @@ PiliPlus 是使用 Flutter 开发的 BiliBili 第三方客户端。本分支在�
    - `FLUTTER_ROOT` → Flutter SDK 目录
    - `GITHUB_WORKSPACE` → 本仓库根目录
 3. `flutter pub get`
-4. 运行 `pwsh lib/scripts/patch.ps1 <platform>`(platform = `android` / `windows`;脚本会把补丁应用到 Flutter SDK 与 pub 缓存中的 material_ui/cupertino_ui 包)
+4. 运行 `pwsh lib/scripts/patch.ps1 <platform>`(platform = `android` / `windows` / `macos` / `ios`;脚本会把补丁应用到 Flutter SDK 与 pub 缓存中的 material_ui/cupertino_ui 包)
 5. 生成版本信息 `pwsh lib/scripts/build.ps1`(依赖 git 历史),或手工创建 `pili_release.json`
 6. 构建:
    - Android: `flutter build apk --release --split-per-abi --dart-define-from-file=pili_release.json --no-pub`
    - Windows: `flutter build windows --release --dart-define-from-file=pili_release.json --no-pub`
+   - macOS / iOS: 推送 tag 由 GitHub Actions 构建(`.github/workflows/mac.yml` / `ios.yml`)
 
 ## 声明
 

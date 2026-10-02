@@ -19,7 +19,6 @@ import 'package:PiliPlus/pages/mine/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
-import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
@@ -413,47 +412,8 @@ class _MainAppState extends PopScopeState<MainApp>
   }
 
   Widget _sideBar() {
-    if (_mainController.navigationBars.length > 1) {
-      if (context.isTablet && _mainController.optTabletNav) {
-        return Padding(
-          padding: const .only(top: 25),
-          child: MediaQuery.removePadding(
-            context: context,
-            removeRight: true,
-            child: DrawerTheme(
-              data: DrawerThemeData(width: 130 + _padding.left),
-              child: Obx(
-                () => NavigationDrawer(
-                  /// apply `lib/scripts/navigation_drawer.patch`
-                  flex: 5,
-                  backgroundColor: Colors.transparent,
-                  onDestinationSelected: _mainController.setIndex,
-                  selectedIndex: _mainController.selectedIndex.value,
-                  header: Expanded(flex: 4, child: userAndSearchVertical()),
-                  tilePadding: const .symmetric(vertical: 5, horizontal: 12),
-                  indicatorShape: const RoundedRectangleBorder(
-                    borderRadius: .all(.circular(16)),
-                  ),
-                  children: _mainController.navigationBars
-                      .map(
-                        (e) => NavigationDrawerDestination(
-                          label: Text(e.label),
-                          icon: _buildIcon(type: e),
-                          selectedIcon: _buildIcon(
-                            type: e,
-                            selected: true,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-      return _desktopSideBar();
-    }
+    // icon-only sidebar for every non-portrait layout (desktop window and
+    // phone/tablet landscape alike); portrait keeps the bottom navigation
     return _desktopSideBar();
   }
 
@@ -657,21 +617,4 @@ class _MainAppState extends PopScopeState<MainApp>
         : icon;
   }
 
-  Widget userAndSearchVertical() {
-    return Column(
-      children: [
-        userAvatar(colorScheme: _colorScheme, mainController: _mainController),
-        const SizedBox(height: 8),
-        msgBadge(_mainController),
-        IconButton(
-          tooltip: '搜索',
-          icon: const Icon(
-            Icons.search_outlined,
-            semanticLabel: '搜索',
-          ),
-          onPressed: () => Get.toNamed('/search'),
-        ),
-      ],
-    );
-  }
 }
