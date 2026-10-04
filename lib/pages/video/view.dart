@@ -929,7 +929,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                         if (videoDetailController.isFileSource)
                           localIntroPanel()
                         else
-                          videoIntro(needCtr: false),
+                          // vertical intro layout for the narrow right column;
+                          // omitting isHorizontal would hit `width!` in
+                          // videoIntro and crash the whole page
+                          videoIntro(isHorizontal: false, needCtr: false),
                         if (videoDetailController.showReply) videoReplyPanel(),
                         if (_shouldShowSeasonPanel) seasonPanel,
                       ],
