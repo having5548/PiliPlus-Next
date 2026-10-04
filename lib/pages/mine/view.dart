@@ -10,8 +10,6 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
-import 'package:PiliPlus/pages/home/view.dart';
-import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/mine/widgets/item.dart';
@@ -20,11 +18,9 @@ import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
-import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart' hide ListTile;
 
 class MinePage extends StatefulWidget {
@@ -137,78 +133,17 @@ class _MediaPageState extends CommonPageState<MinePage>
   }
 
   Widget get _buildHeaderActions {
-    const iconSize = 22.0;
-    const padding = EdgeInsets.all(8);
-    const style = ButtonStyle(tapTargetSize: .shrinkWrap);
-    return PlayerBar(
+    // all former actions (search/whisper/reply-history/anonymity/account/
+    // theme/settings) live in the desktop sidebar now (main/view.dart);
+    // only the back button remains for the standalone entry
+    if (!widget.showBackBtn) {
+      return const SizedBox.shrink();
+    }
+    return const PlayerBar(
       children: [
-        if (widget.showBackBtn)
-          const Padding(
-            padding: EdgeInsets.only(left: 8),
-            child: BackButton(),
-          )
-        else
-          const SizedBox.shrink(),
-        Row(
-          spacing: 5,
-          mainAxisSize: .min,
-          children: [
-            if (!_mainController.hasHome) ...[
-              IconButton(
-                iconSize: iconSize,
-                padding: padding,
-                style: style,
-                tooltip: '搜索',
-                onPressed: () => Get.toNamed('/search'),
-                icon: const Icon(Icons.search),
-              ),
-              msgBadge(_mainController),
-            ],
-            if (GStorage.reply != null)
-              IconButton(
-                iconSize: iconSize,
-                padding: padding,
-                style: style,
-                tooltip: '评论记录',
-                onPressed: () => Get.toNamed('/myReply'),
-                icon: const Icon(Icons.message_outlined),
-              ),
-            Obx(
-              () {
-                final anonymity = MineController.anonymity.value;
-                return IconButton(
-                  iconSize: iconSize,
-                  padding: padding,
-                  style: style,
-                  tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
-                  onPressed: MineController.onChangeAnonymity,
-                  icon: anonymity
-                      ? const Icon(MdiIcons.incognito)
-                      : const Icon(MdiIcons.incognitoOff),
-                );
-              },
-            ),
-            IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '切换账号',
-              onPressed: () => LoginPageController.switchAccountDialog(context),
-              icon: const Icon(Icons.switch_account_outlined),
-            ),
-            Obx(
-              () => IconButton(
-                iconSize: iconSize,
-                padding: padding,
-                style: style,
-                tooltip: '切换至${controller.nextThemeType.label}主题',
-                onPressed: controller.onChangeTheme,
-                icon: controller.themeType.value.icon,
-              ),
-            ),
-            // settings entry moved to the desktop sidebar (main/view.dart)
-            const SizedBox(width: 16),
-          ],
+        Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: BackButton(),
         ),
       ],
     );
