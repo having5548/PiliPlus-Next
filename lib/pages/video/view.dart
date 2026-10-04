@@ -898,17 +898,51 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     if (height > maxHeight) {
       return childSplit(Style.aspectRatio16x9);
     }
-    // player on the left only; intro moved to the right column as its own
-    // tab next to the reply panel (official desktop style)
+    // player on the left with the plain video description below it filling
+    // the leftover space; intro moved to the right column as its own tab
+    // next to the reply panel (official desktop style)
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           width: videoWidth,
-          height: videoHeight,
-          child: videoPlayer(
-            width: videoWidth,
-            height: videoHeight,
+          child: Column(
+            children: [
+              SizedBox(
+                width: videoWidth,
+                height: videoHeight,
+                child: videoPlayer(
+                  width: videoWidth,
+                  height: videoHeight,
+                ),
+              ),
+              if (!videoDetailController.isFileSource)
+                Expanded(
+                  child: Padding(
+                    padding: const .fromLTRB(12, 10, 12, 10),
+                    child: SingleChildScrollView(
+                      child: Obx(
+                        () {
+                          final desc =
+                              introController.videoDetail.value.desc;
+                          return SelectableText(
+                            desc == null || desc.isEmpty
+                                ? '暂无简介'
+                                : desc,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.6,
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.85,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         Offstage(
