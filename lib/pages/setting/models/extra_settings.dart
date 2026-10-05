@@ -1,8 +1,8 @@
-import 'dart:io' show Platform, Directory;
+import 'dart:io' show Platform;
+
 import 'dart:math' show max;
 
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
-import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/emote_tooltip.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart'
     show RefreshIndicator, displacement, refreshDragExtent;
@@ -29,7 +29,6 @@ import 'package:PiliPlus/pages/setting/models/model.dart';
 import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/pages/setting/widgets/slider_dialog.dart';
 import 'package:PiliPlus/pages/video/reply/widgets/reply_item_grpc.dart';
-import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
@@ -37,14 +36,10 @@ import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/filtering_text.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
-import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:PiliPlus/utils/update.dart';
-import 'package:PiliPlus/utils/utils.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -55,23 +50,6 @@ import 'package:material_ui/material_ui.dart' hide RefreshIndicator;
 
 List<SettingsModel> get extraSettings => [
   if (PlatformUtils.isDesktop) ...[
-    SwitchModel(
-      title: '退出时最小化',
-      leading: const Icon(Icons.exit_to_app),
-      setKey: SettingBoxKey.minimizeOnExit,
-      defaultVal: true,
-      onChanged: (value) {
-        try {
-          Get.find<MainController>().minimizeOnExit = value;
-        } catch (_) {}
-      },
-    ),
-    NormalModel(
-      title: '缓存路径',
-      getSubtitle: () => downloadPath,
-      leading: const Icon(Icons.storage),
-      onTap: _showDownPathDialog,
-    ),
   ] else if (Platform.isAndroid)
     SwitchModel(
       title: '允许三方APP访问私有存储',
@@ -209,13 +187,6 @@ List<SettingsModel> get extraSettings => [
     leading: Icon(MdiIcons.sort),
     setKey: SettingBoxKey.reverseFromFirst,
     defaultVal: true,
-  ),
-  const SwitchModel(
-    title: '禁用 SSL 证书验证',
-    subtitle: '谨慎开启，禁用容易受到中间人攻击',
-    leading: Icon(Icons.security),
-    needReboot: true,
-    setKey: SettingBoxKey.badCertificateCallback,
   ),
   const SwitchModel(
     title: '显示继续播放分P提示',
@@ -628,18 +599,6 @@ List<SettingsModel> get extraSettings => [
     leading: const Icon(Icons.delete_outlined),
     onTap: _showCacheDialog,
   ),
-  SwitchModel(
-    title: '检查更新',
-    subtitle: '每次启动时检查是否需要更新',
-    leading: const Icon(Icons.system_update_alt),
-    setKey: SettingBoxKey.autoUpdate,
-    defaultVal: true,
-    onChanged: (val) {
-      if (val) {
-        Update.checkUpdate(false);
-      }
-    },
-  ),
 ];
 
 Future<void> audioNormalization(
@@ -735,59 +694,6 @@ Future<void> audioNormalization(
   }
 }
 
-void _showDownPathDialog(BuildContext context, VoidCallback setState) {
-  showDialog(
-    context: context,
-    builder: (context) => SimpleDialog(
-      clipBehavior: Clip.hardEdge,
-      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-      children: [
-        DialogOption(
-          onPressed: () {
-            Get.back();
-            PathUtils.openDir(downloadPath);
-          },
-          child: const Text('打开'),
-        ),
-        DialogOption(
-          onPressed: () {
-            Get.back();
-            Utils.copyText(downloadPath);
-          },
-          child: const Text('复制', style: TextStyle(fontSize: 14)),
-        ),
-        DialogOption(
-          onPressed: () {
-            Get.back();
-            final defPath = defDownloadPath;
-            if (downloadPath == defPath) return;
-            downloadPath = defPath;
-            setState();
-            Get.find<DownloadService>().initDownloadList();
-            GStorage.setting.delete(SettingBoxKey.downloadPath);
-          },
-          child: const Text('重置', style: TextStyle(fontSize: 14)),
-        ),
-        DialogOption(
-          onPressed: () async {
-            Get.back();
-            final path = await FilePicker.getDirectoryPath(
-              initialDirectory: Directory(downloadPath).existsSync()
-                  ? downloadPath
-                  : null,
-            );
-            if (path == null || path == downloadPath) return;
-            downloadPath = path;
-            setState();
-            Get.find<DownloadService>().initDownloadList();
-            GStorage.setting.put(SettingBoxKey.downloadPath, path);
-          },
-          child: const Text('设置新路径', style: TextStyle(fontSize: 14)),
-        ),
-      ],
-    ),
-  );
-}
 
 void _showDynDialog(BuildContext context) {
   String dynamicPeriod = Pref.dynamicPeriod.toString();

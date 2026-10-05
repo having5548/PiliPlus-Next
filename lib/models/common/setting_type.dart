@@ -1,3 +1,4 @@
+import 'package:PiliPlus/pages/setting/models/app_settings.dart';
 import 'package:PiliPlus/pages/setting/models/extra_settings.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart';
@@ -7,6 +8,7 @@ import 'package:PiliPlus/pages/setting/models/style_settings.dart';
 import 'package:PiliPlus/pages/setting/models/video_settings.dart';
 
 enum SettingType {
+  appSetting('软件设置'),
   privacySetting('隐私设置'),
   recommendSetting('推荐流设置'),
   videoSetting('音视频设置'),
@@ -21,6 +23,7 @@ enum SettingType {
   const SettingType(this.title);
 
   List<SettingsModel> get settings => switch (this) {
+    .appSetting => appSettings,
     .privacySetting => privacySettings,
     .recommendSetting => recommendSettings,
     .videoSetting => videoSettings,

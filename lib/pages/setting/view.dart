@@ -44,14 +44,14 @@ class _SettingPageState extends State<SettingPage> {
 
   static const List<_SettingsModel> _items = [
     _SettingsModel(
+      type: SettingType.appSetting,
+      subtitle: '开机自启、托盘、外观设置、推荐流设置、更新等',
+      icon: Icon(Icons.settings_applications_outlined),
+    ),
+    _SettingsModel(
       type: SettingType.privacySetting,
       subtitle: '黑名单',
       icon: Icon(Icons.privacy_tip_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.recommendSetting,
-      subtitle: '推荐来源（web/app）、刷新保留内容、过滤器',
-      icon: Icon(Icons.explore_outlined),
     ),
     _SettingsModel(
       type: SettingType.videoSetting,
@@ -62,11 +62,6 @@ class _SettingPageState extends State<SettingPage> {
       type: SettingType.playSetting,
       subtitle: '双击/长按、全屏、后台播放、弹幕、字幕、底部进度条等',
       icon: Icon(Icons.touch_app_outlined),
-    ),
-    _SettingsModel(
-      type: SettingType.styleSetting,
-      subtitle: '横屏适配（平板）、侧栏、列宽、首页、动态红点、主题、字号、图片、帧率等',
-      icon: Icon(Icons.style_outlined),
     ),
     _SettingsModel(
       type: SettingType.extraSetting,
@@ -114,6 +109,7 @@ class _SettingPageState extends State<SettingPage> {
                   Expanded(
                     flex: 6,
                     child: switch (_type) {
+                      .appSetting ||
                       .privacySetting ||
                       .recommendSetting ||
                       .videoSetting ||
@@ -145,6 +141,7 @@ class _SettingPageState extends State<SettingPage> {
     if (_isPortrait) {
       Get.to(
         () => switch (type) {
+          .appSetting ||
           .privacySetting ||
           .recommendSetting ||
           .videoSetting ||

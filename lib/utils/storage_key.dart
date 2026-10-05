@@ -160,6 +160,7 @@ abstract final class SettingBoxKey {
       enableEmoteTooltip = 'enableEmoteTooltip';
 
   static const String minimizeOnExit = 'minimizeOnExit',
+      autoStart = 'autoStart',
       windowSize = 'windowSize',
       windowPosition = 'windowPosition',
       isWindowMaximized = 'isWindowMaximized',

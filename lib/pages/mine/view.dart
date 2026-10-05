@@ -139,13 +139,12 @@ class _MediaPageState extends CommonPageState<MinePage>
     if (!widget.showBackBtn) {
       return const SizedBox.shrink();
     }
-    return const PlayerBar(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: 8),
-          child: BackButton(),
-        ),
-      ],
+    return PlayerBar(
+      left: const Padding(
+        padding: EdgeInsets.only(left: 8),
+        child: BackButton(),
+      ),
+      right: const SizedBox.shrink(),
     );
   }
 
