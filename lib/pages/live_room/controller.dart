@@ -196,6 +196,47 @@ class LiveRoomController extends GetxController {
     _sizeSub = null;
   }
 
+  /// live streams occasionally stall/stop silently; if the position stops
+  /// advancing while the player thinks it is playing, re-fetch the playurl
+  Timer? _stallTimer;
+  int _lastStallPos = -1;
+  int _stallTicks = 0;
+
+  void startStallWatchdog() {
+    _stallTimer ??= Timer.periodic(const Duration(seconds: 15), (_) {
+      _checkStalled();
+    });
+  }
+
+  void _checkStalled() {
+    final player = plPlayerController.videoPlayerController;
+    if (player == null || isClosed) {
+      return;
+    }
+    if (!plPlayerController.playerStatus.isPlaying) {
+      // paused by the user / buffering: nothing to recover from
+      _stallTicks = 0;
+      return;
+    }
+    final pos = player.state.position.inMilliseconds;
+    if (pos == _lastStallPos) {
+      _stallTicks++;
+      if (_stallTicks >= 2) {
+        _stallTicks = 0;
+        SmartDialog.showToast('直播中断，正在自动重连');
+        queryLiveUrl();
+      }
+    } else {
+      _stallTicks = 0;
+      _lastStallPos = pos;
+    }
+  }
+
+  void stopStallWatchdog() {
+    _stallTimer?.cancel();
+    _stallTimer = null;
+  }
+
   @override
   void onInit() {
     super.onInit();
@@ -220,6 +261,7 @@ class LiveRoomController extends GetxController {
     if (videoUrl == null) {
       return null;
     }
+    startStallWatchdog();
     return plPlayerController.setDataSource(
       NetworkSource(videoSource: videoUrl!, audioSource: null),
       isLive: true,
@@ -520,6 +562,7 @@ class LiveRoomController extends GetxController {
       superChatMsg.clear();
       fsSC.value = null;
     }
+    stopStallWatchdog();
     scrollController
       ..removeListener(listener)
       ..dispose();

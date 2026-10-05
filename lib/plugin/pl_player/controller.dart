@@ -760,6 +760,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
       await _initializePlayer();
       onInit?.call();
+      _scheduleBlackScreenRecovery();
     } catch (err, stackTrace) {
       dataStatus.value = DataStatus.error;
       if (kDebugMode) {
@@ -769,6 +770,47 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     } finally {
       _processing = false;
     }
+  }
+
+  /// "black screen with sound" recovery: if playback is running but the
+  /// video surface never produced a frame (1080p hwdec glitch, upstream
+  /// #2798/#2658 family), a seek forces the decoder/output to restart —
+  /// the same workaround as manually switching the quality back and forth
+  Timer? _blackScreenTimer;
+  int _blackScreenRetries = 0;
+
+  void _scheduleBlackScreenRecovery() {
+    _blackScreenTimer?.cancel();
+    _blackScreenTimer = Timer(const Duration(seconds: 10), () async {
+      final player = _videoPlayerController;
+      if (player == null ||
+          _playerCount == 0 ||
+          isLive ||
+          dataStatus.value != DataStatus.loaded) {
+        return;
+      }
+      if (!player.state.playing ||
+          player.state.buffering ||
+          (player.state.videoParams.w ?? 0) > 0) {
+        return;
+      }
+      if (_blackScreenRetries >= 2) {
+        return;
+      }
+      _blackScreenRetries++;
+      final pos = player.state.position;
+      debugPrint('plPlayer: video frame missing, seek to recover ($pos)');
+      await player.seek(pos);
+      await Future.delayed(const Duration(seconds: 6));
+      if ((player.state.videoParams.w ?? 0) > 0 || !player.state.playing) {
+        return;
+      }
+      // still no frame: reload the current source once more
+      final ds = dataSource;
+      if (_playerCount > 0) {
+        await setDataSource(ds, seekTo: pos, isLive: isLive);
+      }
+    });
   }
 
   String? shadersDirPath;
