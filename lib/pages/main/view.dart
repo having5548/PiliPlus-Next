@@ -463,6 +463,12 @@ class _MainAppState extends PopScopeState<MainApp>
               tabBtn(.home),
               tabBtn(.dynamics),
               IconButton(
+                tooltip: '精选',
+                onPressed: () => Get.toNamed('/featureFeed'),
+                iconSize: 24,
+                icon: const Icon(Icons.local_fire_department_outlined),
+              ),
+              IconButton(
                 tooltip: '搜索',
                 onPressed: () => Get.toNamed('/search'),
                 iconSize: 24,

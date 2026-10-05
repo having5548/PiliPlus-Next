@@ -1,3 +1,4 @@
+import 'package:PiliPlus/pages/feature_feed/view.dart';
 import 'package:PiliPlus/pages/article/view.dart';
 import 'package:PiliPlus/pages/article_list/view.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
@@ -73,6 +74,7 @@ import 'package:get/get.dart';
 class Routes {
   static final List<GetPage<dynamic>> getPages = [
     GetPage(name: '/', page: () => const MainApp()),
+    GetPage(name: '/featureFeed', page: () => const FeaturedFeedPage()),
     // 首页(推荐)
     GetPage(name: '/home', page: () => const HomePage()),
     // 热门
