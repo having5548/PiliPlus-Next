@@ -1,5 +1,6 @@
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
+import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models/home/rcmd/result.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
@@ -86,6 +87,19 @@ class FeatureFeedController extends GetxController {
     }
   }
 
+  /// 已播放视频的详情(真实点赞/评论/转发数与简介)
+  final RxMap<int, VideoDetailData> details = <int, VideoDetailData>{}.obs;
+
+  Future<void> _fetchDetail(int index) async {
+    final item = feedList[index];
+    final bvid = item.bvid;
+    if (bvid == null || details.containsKey(index)) return;
+    final res = await VideoHttp.videoIntro(bvid: bvid);
+    if (res case Success(:final response)) {
+      details[index] = response;
+    }
+  }
+
   PlPlayerController get playerController => PlPlayerController.getInstance();
 
   /// 取指定视频的播放地址(默认画质,音视频分离)
@@ -94,6 +108,7 @@ class FeatureFeedController extends GetxController {
     if (item.bvid == null || item.cid == null) {
       return null;
     }
+    _fetchDetail(index);
     final res = await VideoHttp.videoUrl(
       bvid: item.bvid,
       cid: item.cid!,

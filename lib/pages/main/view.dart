@@ -11,6 +11,7 @@ import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/pages/dynamics/view.dart';
+import 'package:PiliPlus/pages/feature_feed/view.dart';
 import 'package:PiliPlus/pages/home/view.dart';
 import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
@@ -429,6 +430,7 @@ class _MainAppState extends PopScopeState<MainApp>
                   child: switch (type) {
                     .home => const HomePage(),
                     .dynamics => const DynamicsPage(),
+                    .featured => const FeaturedFeedPage(),
                     .mine => const MinePage(showBackBtn: true),
                   },
                 ),
@@ -462,12 +464,11 @@ class _MainAppState extends PopScopeState<MainApp>
               ),
               tabBtn(.home),
               tabBtn(.dynamics),
-              IconButton(
-                tooltip: '精选',
-                onPressed: () => Get.toNamed('/featureFeed'),
-                iconSize: 24,
-                icon: const Icon(Icons.local_fire_department_outlined),
-              ),
+              if (navigationBars.contains(
+                NavigationBarType.featured,
+              )) ...[
+                tabBtn(.featured),
+              ],
               IconButton(
                 tooltip: '搜索',
                 onPressed: () => Get.toNamed('/search'),
