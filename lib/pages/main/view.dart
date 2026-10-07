@@ -18,7 +18,7 @@ import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/mine/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
-import 'package:PiliPlus/utils/android/android_helper.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/device_utils.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
@@ -297,7 +297,7 @@ class _MainAppState extends PopScopeState<MainApp>
   @pragma('vm:prefer-inline')
   static void _onBack() {
     if (Platform.isAndroid) {
-      PiliAndroidHelper.back();
+      AndroidHelper.back();
     }
   }
 
