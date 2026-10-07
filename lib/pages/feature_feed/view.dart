@@ -262,7 +262,11 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     _attachPlayingStream();
     return Obx(() {
       final controller = _player.videoController;
-      if (controller == null || !_hasFrame.value) {
+      // 必须同时满足:① 取流完成(dataStatus 离开 loading)——基线就是靠它避免
+      // 在纹理未初始化时就把占位表面画出来(那片均匀浅灰);② 播放器已报告
+      // 真实画面尺寸,避免把 0x0 空纹理铺满屏幕。
+      final inited = _player.dataStatus.value != .loading;
+      if (controller == null || !inited || !_hasFrame.value) {
         return const SizedBox.shrink();
       }
       return Stack(
@@ -270,10 +274,14 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
         children: [
           GestureDetector(
             onTap: _togglePlay,
-            child: Video(
-              controller: controller,
-              controls: (state) => const SizedBox.shrink(),
-              fit: BoxFit.contain,
+            child: RepaintBoundary(
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: SimpleVideo(
+                  controller: controller,
+                  fill: Colors.black,
+                ),
+              ),
             ),
           ),
           // 弹幕层:按当前视频的 cid 重建,不拦手势
