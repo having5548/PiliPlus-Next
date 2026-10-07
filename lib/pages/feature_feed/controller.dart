@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
@@ -102,6 +104,65 @@ class FeatureFeedController extends GetxController {
 
   PlPlayerController get playerController => PlPlayerController.getInstance();
 
+  /// 最近一次播放失败的原因;为空表示没失败。
+  /// 取流失败必须能被看见——旧实现直接 return,界面只会一直转圈。
+  final RxString playerError = ''.obs;
+
+  Timer? _frameFix;
+
+  /// 播放第 index 个视频。
+  ///
+  /// 两个必须守住的性质:
+  /// 1. **有界退出**:无论成功失败都要把状态落到终态,不能静默 return;
+  /// 2. **首帧补救**:setDataSource 之后播放器可能已经建好纹理但宽高仍是
+  ///    0x0,此时画面是一层均匀的浅色(用户描述为"糊了一层白")。上游那个
+  ///    兜底要等 10 秒且只在播放中生效,这里提前主动重开输出。
+  Future<void> playAt(int index, {bool autoplay = true}) async {
+    if (index < 0 || index >= feedList.length) return;
+    _frameFix?.cancel();
+    playerError.value = '';
+    try {
+      final source = await buildSource(index).timeout(
+        const Duration(seconds: 20),
+      );
+      if (source == null) {
+        playerError.value = '这条推荐暂时取不到播放地址';
+        return;
+      }
+      await playerController
+          .setDataSource(source, autoplay: autoplay, seekTo: Duration.zero)
+          .timeout(const Duration(seconds: 30));
+      _fixFirstFrame(index);
+    } catch (e) {
+      playerError.value = '$e';
+    }
+  }
+
+  /// 1.2 秒还没有画面尺寸就 refreshPlayer() 重开一次输出,最多两次
+  void _fixFirstFrame(int index) {
+    var tries = 0;
+    _frameFix = Timer.periodic(const Duration(milliseconds: 1200), (t) {
+      if (isClosed) {
+        t.cancel();
+        return;
+      }
+      final player = playerController.videoPlayerController;
+      if (player == null) return;
+      if (player.state.width > 0 && player.state.height > 0) {
+        t.cancel();
+        _frameFix = null;
+        return;
+      }
+      if (tries >= 2) {
+        t.cancel();
+        _frameFix = null;
+        return;
+      }
+      tries++;
+      playerController.refreshPlayer();
+    });
+  }
+
   /// 取指定视频的播放地址(默认画质,音视频分离)
   Future<NetworkSource?> buildSource(int index) async {
     final item = feedList[index];
@@ -142,6 +203,7 @@ class FeatureFeedController extends GetxController {
 
   @override
   void onClose() {
+    _frameFix?.cancel();
     playerController
       ..pause(notify: false)
       ..dispose();
