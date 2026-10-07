@@ -6,6 +6,7 @@ import 'package:PiliPlus/plugin/pl_player/models/data_status.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -82,7 +83,27 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
           ),
         );
       }
-      return PageView.builder(
+      return Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) {
+            return KeyEventResult.ignored;
+          }
+          final current = _pageController.hasClients
+              ? _pageController.page?.round() ?? 0
+              : 0;
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+              current < list.length - 1) {
+            _gotoPage(current + 1);
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowUp && current > 0) {
+            _gotoPage(current - 1);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: PageView.builder(
         scrollDirection: Axis.vertical,
         controller: _pageController,
         itemCount: list.length + 1,
@@ -107,8 +128,17 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
           }
           return _buildPage(context, list[index], index);
         },
+      ),
       );
     });
+  }
+
+  void _gotoPage(int index) {
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Widget _buildPage(

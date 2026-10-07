@@ -122,7 +122,7 @@ abstract final class _Advapi32 {
         'RegQueryValueExW',
       );
   static final _RegCloseKeyWDart regCloseKeyW = lib
-      .lookupFunction<_RegCloseKeyWNative, _RegCloseKeyWDart>('RegCloseKeyW');
+      .lookupFunction<_RegCloseKeyWNative, _RegCloseKeyWDart>('RegCloseKey');
 }
 
 abstract final class AutoStartOps {
