@@ -105,13 +105,40 @@ class FeatureFeedController extends GetxController {
     }
   }
 
-  PlPlayerController get playerController => PlPlayerController.getInstance();
+  /// 播放器实例。
+  ///
+  /// **必须缓存**,不能写成 `=> PlPlayerController.getInstance()`:
+  /// 那个 getInstance 内部有 `.._playerCount += 1`(给多实例播放计数用的),
+  /// 每取一次属性就涨一次。而视图会在 Obx 里、每帧的 _buildVideoLayer /
+  /// _syncHasFrame 里读它 —— 计数会飙到几百,dispose() 时命中
+  /// `_playerCount > 1` 分支只减 1 就返回,播放器**永远不会真正释放与重建**,
+  /// 于是表现为:首次/切视频都不自动播放、进度与时长拿不到(拖进度条无效)。
+  late final PlPlayerController playerController =
+      PlPlayerController.getInstance();
 
   /// 最近一次播放失败的原因;为空表示没失败。
   /// 取流失败必须能被看见——旧实现直接 return,界面只会一直转圈。
   final RxString playerError = ''.obs;
 
   Timer? _frameFix;
+
+  /// 注册"自动播放"回调。
+  ///
+  /// **这一步不能省**:`PlPlayerController.setDataSource(autoplay: true)` 内部
+  /// 最终走的是 `_initializePlayer()` → `playIfExists()` → `_playCallBack?.call()`,
+  /// 也就是**靠外部注册的回调真正开始播放**。视频详情页/直播间都会
+  /// `setPlayCallBack(...)`,精选页以前没注册,于是 `_autoPlay` 是 true 却调了个
+  /// 空回调 —— 表现就是"打开不自动播放、切下一个也不自动播放"。
+  void bindAutoPlay() {
+    PlPlayerController.setPlayCallBack(
+      () => playerController.play(),
+      playOwner: (tag: 'featureFeed', type: runtimeType),
+    );
+  }
+
+  void unbindAutoPlay() {
+    PlPlayerController.setPlayCallBack(null);
+  }
 
   /// 播放第 index 个视频。
   ///

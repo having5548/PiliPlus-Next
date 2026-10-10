@@ -86,11 +86,17 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     final has =
         player != null && player.state.width > 0 && player.state.height > 0;
     if (_hasFrame.value != has) _hasFrame.value = has;
+    // 兜底同步播放状态:stream.playing 偶发漏发时 _playing 会卡在 false,
+    // 表现为"视频在放但控制条永不自动隐藏、播放/暂停图标也不对"。
+    final playing = player?.state.playing ?? false;
+    if (_playing.value != playing) _playing.value = playing;
   }
 
   @override
   void initState() {
     super.initState();
+    // 必须先绑自动播放回调,否则 setDataSource(autoplay: true) 会调空回调
+    _controller.bindAutoPlay();
     _controller.loadMore(refresh: true).then((_) {
       if (_controller.feedList.isNotEmpty) {
         _playAt(0);
@@ -120,6 +126,8 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     _barTimer?.cancel();
     _wheelLock?.cancel();
     _pageController.dispose();
+    // 取消自动播放回调,否则控制器已销毁时 playIfExists 会打到旧实例上
+    _controller.unbindAutoPlay();
     Get.delete<FeatureFeedController>();
     super.dispose();
   }
@@ -240,17 +248,21 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
               ),
             );
           }
-          return _buildTextOverlay(context, list[index], index);
+          // 页面本身只负责手势与占位;文字被提到视频层之上单独画,
+          // 否则会被 BoxFit.contain 的黑边盖住。
+          return const SizedBox.expand();
         },
       );
-      // 左侧舞台:视频层 + 文字 overlay + 右侧操作栏 + 底部控制条。
-      // 操作栏与控制条必须**排在视频层之后**才会画在纹理之上,
-      // 否则会被视频盖住(用户反馈"点赞/评论按钮被视频挡住")。
+      // 左侧舞台:视频层 + 底部渐变遮罩 + 文字 + 操作栏 + 控制条。
+      // 这些 overlay 必须**排在视频层之后**才会画在纹理之上,
+      // 否则会被视频盖住(用户反馈"UP名称与简介被视频遮挡"、
+      // "点赞/评论按钮被视频挡住")。
       final stage = Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Colors.black, child: pages),
           _buildVideoLayer(),
+          _buildTextOverlay(),
           _buildActionRail(),
           _buildControlBar(),
         ],
@@ -483,20 +495,42 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     );
   }
 
-  /// 每一页的文字与加载提示(视频不在这里,翻页重建无妨)
-  Widget _buildTextOverlay(
-    BuildContext context,
-    RcmdVideoItemAppModel item,
-    int index,
-  ) {
+
+  /// 当前这条视频的文字层(**常驻,画在视频层之上**)。
+  /// 之前把它放在 PageView 的每一页里,会被 BoxFit.contain 的视频连同黑边
+  /// 一起盖住 —— 用户看到的就是"UP 名称与简介被视频遮挡"。
+  Widget _buildTextOverlay() {
     return Obx(() {
+      final index = _current;
+      final list = _controller.feedList;
+      final loading = _player.dataStatus.value == .loading;
+      if (index < 0 || index >= list.length) {
+        return loading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              )
+            : const SizedBox.shrink();
+      }
+      final item = list[index];
       final detail = _controller.details[index];
+      final error = _controller.playerError.value;
       return Stack(
         fit: StackFit.expand,
         children: [
-          if (_player.dataStatus.value == .loading)
+          if (loading)
             const Center(
               child: CircularProgressIndicator(color: Colors.white),
+            ),
+          if (error.isNotEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                child: Text(
+                  error,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ),
             ),
           Positioned(
             left: 16,
@@ -511,7 +545,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                     color: Colors.white,
                     fontSize: 15,
                     height: 1.4,
-                    shadows: [Shadow(blurRadius: 6, color: Colors.black54)],
+                    shadows: [Shadow(blurRadius: 4, color: Colors.black), Shadow(blurRadius: 10, color: Colors.black54)],
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -521,10 +555,10 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                   Text(
                     detail!.desc!,
                     style: const TextStyle(
-                      color: Colors.white70,
+                      color: Colors.white,
                       fontSize: 12,
                       height: 1.4,
-                      shadows: [Shadow(blurRadius: 6, color: Colors.black54)],
+                      shadows: [Shadow(blurRadius: 4, color: Colors.black), Shadow(blurRadius: 10, color: Colors.black54)],
                     ),
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
@@ -534,9 +568,9 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                   '@${detail?.owner?.name ?? item.owner.name}'
                   '  ${DurationUtils.formatDuration(item.duration)}',
                   style: const TextStyle(
-                    color: Colors.white70,
+                    color: Colors.white,
                     fontSize: 12,
-                    shadows: [Shadow(blurRadius: 6, color: Colors.black54)],
+                    shadows: [Shadow(blurRadius: 4, color: Colors.black), Shadow(blurRadius: 10, color: Colors.black54)],
                   ),
                 ),
               ],
