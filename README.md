@@ -104,7 +104,7 @@
 | **桌面端** | 纯图标侧边栏、播放器音量按钮、宽屏视频页布局、横屏简介填充 |
 | **设置** | 「软件设置」分类（开机自启 / 最小化到托盘）、自启状态与安装包同步 |
 | **Bug 修复** | 9 个上游 issue、分P续播、设置页白屏 |
-| **平台** | 维护 **Windows / Android / macOS / iOS** 四平台，**不再跟进 Linux 与 HarmonyOS** |
+| **平台** | 构建与发布 **Windows / Android / macOS / iOS** 四平台产物。Linux：`linux/` 脚手架与上游的 `linux_x64.yml` 工作流**保留但未维护**，本分支不构建、不发布 Linux 产物。HarmonyOS：曾试做脚手架（`ohos/`）后**已移除** |
 | **工程** | `patch.ps1` 在 Windows 上的 pub 缓存路径修正、`build.ps1` 的 `GITHUB_ENV` 守卫、Gradle 镜像 |
 
 ---
@@ -115,6 +115,8 @@
 - [x] Windows（Inno Setup 安装包）
 - [x] macOS（CI 构建 DMG）
 - [x] iOS（CI 构建未签名 ipa，供侧载）
+
+> Linux 与 HarmonyOS **不在本分支的构建与发布范围内**（Linux 脚手架与上游工作流仍保留在仓库里但未维护，HarmonyOS 脚手架已移除），详见上方[与原版的差异一览](#与原版的差异一览)。
 
 ## 下载
 

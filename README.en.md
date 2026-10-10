@@ -100,7 +100,7 @@ The full list and progress live in [docs/BUGFIX.md](docs/BUGFIX.md) (upstream op
 | **Desktop** | Icon-only sidebar, player volume button, wide-screen video layout, landscape description fill |
 | **Settings** | "Software settings" category (launch at startup / minimize to tray), startup state synced with the installer |
 | **Bug fixes** | 9 upstream issues, per-part resume, blank settings page |
-| **Platforms** | **Windows / Android / macOS / iOS**; Linux and HarmonyOS are no longer tracked |
+| **Platforms** | Builds and publishes **Windows / Android / macOS / iOS**. Linux: the `linux/` scaffold and the upstream `linux_x64.yml` workflow are **kept but unmaintained** — this fork neither builds nor publishes Linux artifacts. HarmonyOS: a scaffold (`ohos/`) was tried and then **removed** |
 | **Tooling** | `patch.ps1` pub-cache path fix on Windows, `build.ps1` `GITHUB_ENV` guard, Gradle mirror |
 
 ---
@@ -111,6 +111,8 @@ The full list and progress live in [docs/BUGFIX.md](docs/BUGFIX.md) (upstream op
 - [x] Windows (Inno Setup installer)
 - [x] macOS (DMG built in CI)
 - [x] iOS (unsigned ipa built in CI, for sideloading)
+
+> Linux and HarmonyOS are **outside this fork's build and release scope** (the Linux scaffold and upstream workflow are still in the repo but unmaintained; the HarmonyOS scaffold was removed). See the [differences table](#differences-from-upstream-at-a-glance) above.
 
 ## Download
 
