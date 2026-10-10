@@ -2,17 +2,24 @@ import 'dart:async';
 
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/models/home/rcmd/result.dart';
+import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/pages/danmaku/view.dart';
 import 'package:PiliPlus/pages/feature_feed/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
+import 'package:PiliPlus/pages/video/pay_coins/view.dart';
+import 'package:PiliPlus/pages/video/reply/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
+import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/volume_btn.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -232,23 +239,49 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
               ),
             );
           }
-          return _buildOverlay(context, list[index], index);
+          return _buildTextOverlay(context, list[index], index);
         },
       );
-
+      // 左侧舞台:视频层 + 文字 overlay + 右侧操作栏 + 底部控制条。
+      // 操作栏与控制条必须**排在视频层之后**才会画在纹理之上,
+      // 否则会被视频盖住(用户反馈"点赞/评论按钮被视频挡住")。
       final stage = Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Colors.black, child: pages),
           _buildVideoLayer(),
+          _buildActionRail(),
           _buildControlBar(),
         ],
       );
 
+      // 评论区像抖音那样从右侧展开:展开时左侧舞台自动缩窄,播放器跟着变小
+      final body = Obx(() {
+        final bvid = _controller.replyBvid.value;
+        final open = _controller.showReply.value && bvid.isNotEmpty;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: stage),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              width: open ? 400 : 0,
+              child: open
+                  ? VideoReplyPanel(
+                      heroTag: _controller.replyTagFor(bvid),
+                      isNested: true,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        );
+      });
+
       final focused = Focus(
         autofocus: true,
         onKeyEvent: _onKey,
-        child: stage,
+        child: body,
       );
 
       if (!PlatformUtils.isDesktop) return focused;
@@ -346,37 +379,45 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                     ),
                   ),
                   Expanded(
-                    child: Obx(() {
-                      final dur = _player.duration.value;
-                      final value = _dragValue?.clamp(0.0, dur.toDouble()) ??
-                          _player.progress.toDouble();
-                      return SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 2.5,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
+                    // 与视频详情页/B站客户端同款的进度条:细轨 + 缓冲条 + 可拖圆点。
+                    // 拖动时用 _dragValue 跟随手指,松手才真正 seek(避免拖动中反复跳转)。
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Obx(() {
+                        final dur = _player.duration.value;
+                        final shown = _dragValue?.round() ?? _player.progress;
+                        return ProgressBar(
+                          progress: shown.clamp(0, dur <= 0 ? 0 : dur),
+                          buffered: _player.buffered.value.clamp(
+                            0,
+                            dur <= 0 ? 0 : dur,
                           ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 10,
-                          ),
-                        ),
-                        child: Slider(
-                          value: dur > 0 ? value : 0,
-                          max: dur > 0 ? dur.toDouble() : 1,
-                          onChanged: dur > 0
-                              ? (v) => setState(() => _dragValue = v)
-                              : null,
-                          onChangeEnd: (v) {
-                            _player.seekTo(
-                              Duration(seconds: v.round()),
-                              isSeek: true,
-                            );
+                          total: dur,
+                          onDragStart: (ThumbDragDetails d) => _pokeBar(),
+                          onDragUpdate: (ThumbDragDetails d) =>
+                              setState(() => _dragValue = d.seconds.toDouble()),
+                          // onDragEnd 是无参回调,落点用 onDragUpdate 记下的 _dragValue
+                          onDragEnd: () {
+                            final target = _dragValue?.round();
+                            if (target != null) {
+                              _player.seekTo(
+                                Duration(seconds: target),
+                                isSeek: true,
+                              );
+                            }
                             setState(() => _dragValue = null);
                             _pokeBar();
                           },
-                        ),
-                      );
-                    }),
+                          progressBarColor: const Color(0xFFFB7299),
+                          baseBarColor: const Color(0x33FFFFFF),
+                          bufferedBarColor: const Color(0x66FB7299),
+                          thumbColor: const Color(0xFFFB7299),
+                          thumbGlowColor: const Color(0x50FB7299),
+                          barHeight: 3.5,
+                          thumbRadius: 5,
+                        );
+                      }),
+                    ),
                   ),
                   Obx(
                     () => Text(
@@ -384,7 +425,12 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
+                  // 弹幕开关 + 弹幕设置(与全屏播放器一样挨着音量放)
+                  _danmakuButton(),
+                  const SizedBox(width: 2),
+                  _danmakuSettingButton(context),
+                  const SizedBox(width: 2),
                   VolumeButton(plPlayerController: _player),
                 ],
               ),
@@ -395,8 +441,47 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     );
   }
 
-  /// 每一页的文字与操作按钮(视频不在这里,所以翻页重建无妨)
-  Widget _buildOverlay(
+  /// 弹幕显示开关(一键开关,不用进设置)
+  Widget _danmakuButton() {
+    return Obx(
+      () => IconButton(
+        tooltip: '弹幕开关',
+        onPressed: () {
+          _player.enableShowDanmaku.toggle();
+          _pokeBar();
+        },
+        icon: Icon(
+          _player.enableShowDanmaku.value
+              ? Icons.subtitles
+              : Icons.subtitles_off_outlined,
+          color: Colors.white,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  /// 弹幕设置:展开与视频页一致的弹幕样式面板
+  Widget _danmakuSettingButton(BuildContext context) {
+    return IconButton(
+      tooltip: '弹幕设置',
+      onPressed: () {
+        _pokeBar();
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: const Color(0xFF1E1E22),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          builder: (_) => const _DanmakuSettingSheet(),
+        );
+      },
+      icon: const Icon(Icons.tune, color: Colors.white, size: 20),
+    );
+  }
+
+  /// 每一页的文字与加载提示(视频不在这里,翻页重建无妨)
+  Widget _buildTextOverlay(
     BuildContext context,
     RcmdVideoItemAppModel item,
     int index,
@@ -454,40 +539,92 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
               ],
             ),
           ),
-          Positioned(
-            right: 12,
-            bottom: 56,
-            child: Column(
-              children: [
-                _action(
-                  icon: Icons.thumb_up_outlined,
-                  label: _fmt(detail?.stat?.like ?? item.stat.like),
-                  onTap: () => _openDetail(item),
-                ),
-                const SizedBox(height: 18),
-                _action(
-                  icon: Icons.chat_bubble_outline,
-                  label: _fmt(detail?.stat?.reply ?? item.stat.danmu),
-                  onTap: () => _openDetail(item),
-                ),
-                const SizedBox(height: 18),
-                _action(
-                  icon: Icons.reply_outlined,
-                  label: _fmt(detail?.stat?.share ?? item.stat.view),
-                  onTap: () => _openDetail(item),
-                ),
-                const SizedBox(height: 18),
-                _action(
-                  icon: Icons.more_vert,
-                  label: '详情',
-                  onTap: () => _openDetail(item),
-                ),
-              ],
-            ),
-          ),
         ],
       );
     });
+  }
+
+  /// 右侧操作栏。**独立成层并排在视频层之后**,才不会被视频纹理盖住。
+  Widget _buildActionRail() {
+    return Obx(() {
+      final index = _current;
+      final list = _controller.feedList;
+      if (index < 0 || index >= list.length) return const SizedBox.shrink();
+      final item = list[index];
+      final detail = _controller.details[index];
+      final liked = _controller.liked[index] ?? false;
+      final coined = _controller.coined[index] ?? false;
+      final replyOpen = _controller.showReply.value &&
+          item.bvid != null &&
+          _controller.replyBvid.value == item.bvid;
+      return Positioned(
+        right: 12,
+        bottom: 56,
+        child: Column(
+          children: [
+            _action(
+              icon: liked ? Icons.thumb_up : Icons.thumb_up_outlined,
+              iconColor: liked ? const Color(0xFFFB7299) : Colors.white,
+              label: _fmt(detail?.stat?.like ?? item.stat.like),
+              onTap: () => _controller.toggleLike(index),
+            ),
+            const SizedBox(height: 18),
+            _action(
+              icon: coined
+                  ? Icons.monetization_on
+                  : Icons.monetization_on_outlined,
+              iconColor: coined ? const Color(0xFFF5C542) : Colors.white,
+              label: _fmt(detail?.stat?.coin ?? 0),
+              onTap: () => _showCoinPanel(index),
+            ),
+            const SizedBox(height: 18),
+            _action(
+              icon: replyOpen ? Icons.chat_bubble : Icons.chat_bubble_outline,
+              iconColor: replyOpen ? const Color(0xFFFB7299) : Colors.white,
+              label: _fmt(detail?.stat?.reply ?? item.stat.danmu),
+              onTap: () => _controller.openReply(index),
+            ),
+            const SizedBox(height: 18),
+            _action(
+              icon: Icons.reply_outlined,
+              label: _fmt(detail?.stat?.share ?? item.stat.view),
+              onTap: () {
+                Clipboard.setData(
+                  ClipboardData(text: _controller.shareLink(index)),
+                );
+                SmartDialog.showToast('链接已复制');
+              },
+            ),
+            const SizedBox(height: 18),
+            _action(
+              icon: Icons.more_vert,
+              label: '详情',
+              onTap: () => _openDetail(item),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  /// 投币:用**原版**的投币面板(带 1币/2币 与「同时点赞」),与视频详情页一致
+  void _showCoinPanel(int index) {
+    if (!_controller.isLogin) {
+      SmartDialog.showToast('请先登录');
+      return;
+    }
+    if (_controller.coined[index] ?? false) {
+      SmartDialog.showToast('已经投过币啦');
+      return;
+    }
+    final detail = _controller.details[index];
+    PayCoinsPage.toPayCoinsPage(
+      onPayCoin: (coin, coinWithLike) =>
+          _controller.coin(index, coin, coinWithLike: coinWithLike),
+      hasCoin: _controller.coined[index] ?? false,
+      // copyright == 1 才允许投币;拿不到详情时按允许处理
+      hasCopyright: (detail?.copyright ?? 1) == 1,
+    );
   }
 
   void _openDetail(RcmdVideoItemAppModel item) {
@@ -505,16 +642,136 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Color iconColor = Colors.white,
   }) {
     return Column(
       children: [
         IconButton(
           onPressed: onTap,
-          icon: Icon(icon, color: Colors.white, size: 28),
+          icon: Icon(icon, color: iconColor, size: 28),
         ),
         Text(
           label,
           style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+/// 弹幕设置面板:改完即时生效(updateOption)并写回偏好。
+/// 与视频页共用同一套 DanmakuOptions / danmakuOpacity,所以两边同步。
+class _DanmakuSettingSheet extends StatelessWidget {
+  const _DanmakuSettingSheet();
+
+  PlPlayerController get _player => PlPlayerController.getInstance();
+
+  void _apply() {
+    _player.danmakuController?.updateOption(
+      DanmakuOptions.get(notFullscreen: true),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const labelStyle = TextStyle(color: Colors.white, fontSize: 13);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '弹幕设置',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Obx(
+              () => SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('显示弹幕', style: labelStyle),
+                value: _player.enableShowDanmaku.value,
+                onChanged: (v) {
+                  _player.enableShowDanmaku.value = v;
+                  GStorage.setting.put(SettingBoxKey.enableShowDanmaku, v);
+                },
+              ),
+            ),
+            Obx(
+              () => _slider(
+                label: '不透明度 '
+                    '${(_player.danmakuOpacity.value * 100).toStringAsFixed(0)}%',
+                value: _player.danmakuOpacity.value.clamp(0.0, 1.0),
+                min: 0,
+                max: 1,
+                onChanged: (v) {
+                  _player.danmakuOpacity.value = v;
+                  DanmakuOptions.save(v);
+                },
+              ),
+            ),
+            _slider(
+              label: '字体大小 '
+                  '${(DanmakuOptions.danmakuFontScale * 100).toStringAsFixed(0)}%',
+              value: DanmakuOptions.danmakuFontScale.clamp(0.5, 2.0),
+              min: 0.5,
+              max: 2.0,
+              onChanged: (v) {
+                DanmakuOptions.danmakuFontScale = v;
+                DanmakuOptions.save(_player.danmakuOpacity.value);
+                _apply();
+              },
+            ),
+            _slider(
+              label: '显示区域 '
+                  '${(DanmakuOptions.danmakuShowArea * 100).toStringAsFixed(0)}%',
+              value: DanmakuOptions.danmakuShowArea.clamp(0.1, 1.0),
+              min: 0.1,
+              max: 1.0,
+              onChanged: (v) {
+                DanmakuOptions.danmakuShowArea = v;
+                DanmakuOptions.save(_player.danmakuOpacity.value);
+                _apply();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _slider({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        SliderTheme(
+          data: const SliderThemeData(
+            trackHeight: 2,
+            activeTrackColor: Color(0xFFFB7299),
+            thumbColor: Color(0xFFFB7299),
+            overlayColor: Color(0x33FB7299),
+            thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
+          ),
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            onChanged: onChanged,
+          ),
         ),
       ],
     );

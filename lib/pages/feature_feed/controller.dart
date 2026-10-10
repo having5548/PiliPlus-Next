@@ -9,8 +9,11 @@ import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/pages/rcmd/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
+import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 
 /// 精选:抖音式竖滑推荐流。
@@ -199,6 +202,110 @@ class FeatureFeedController extends GetxController {
     } catch (_) {
       return null;
     }
+  }
+
+  // ---- 互动:点赞 / 投币 / 评论区(像抖音那样右侧展开) ----
+
+  /// 按页下标记录已赞/已投币,避免翻页回来状态丢失
+  final RxMap<int, bool> liked = <int, bool>{}.obs;
+  final RxMap<int, bool> coined = <int, bool>{}.obs;
+
+  /// 右侧评论区是否展开,以及当前评论的是哪条视频
+  final RxBool showReply = false.obs;
+  final RxString replyBvid = ''.obs;
+
+  /// 评论区需要一个稳定的 tag(与视频详情页同款控制器,收藏/展开状态都靠它)
+  String replyTagFor(String bvid) => 'featureFeedReply_$bvid';
+
+  bool get isLogin => Accounts.main.isLogin;
+
+  String shareLink(int index) {
+    final bvid = feedList[index].bvid;
+    return bvid == null ? '' : 'https://www.bilibili.com/video/$bvid';
+  }
+
+  /// 首次进入某条视频时拉一次关系状态(是否已赞/已投币)
+  Future<void> syncRelation(int index) async {
+    if (index < 0 || index >= feedList.length) return;
+    final bvid = feedList[index].bvid;
+    if (bvid == null || !isLogin) return;
+    try {
+      final res = await VideoHttp.videoRelation(bvid: bvid);
+      if (res case Success(:final response)) {
+        liked[index] = response.like ?? false;
+        coined[index] = (response.coin ?? 0) > 0;
+      }
+    } catch (_) {
+      // 关系状态拿不到不影响播放
+    }
+  }
+
+  /// 点赞/取消点赞
+  Future<void> toggleLike(int index) async {
+    if (index < 0 || index >= feedList.length) return;
+    final bvid = feedList[index].bvid;
+    if (bvid == null) return;
+    if (!isLogin) {
+      SmartDialog.showToast('请先登录');
+      return;
+    }
+    final next = !(liked[index] ?? false);
+    final res = await VideoHttp.likeVideo(bvid: bvid, type: next);
+    if (res case Success()) {
+      liked[index] = next;
+      final detail = details[index];
+      if (detail != null) {
+        final stat = detail.stat;
+        final base = stat?.like ?? 0;
+        if (stat != null) {
+          stat.like = next ? base + 1 : (base > 0 ? base - 1 : 0);
+        }
+        details[index] = detail;
+      }
+      SmartDialog.showToast(next ? '点赞成功' : '已取消点赞');
+    } else {
+      res.toast();
+    }
+  }
+
+  /// 投币(面板里选好数量后回调)
+  Future<void> coin(
+    int index,
+    int multiply, {
+    bool coinWithLike = false,
+  }) async {
+    if (index < 0 || index >= feedList.length) return;
+    final bvid = feedList[index].bvid;
+    if (bvid == null) return;
+    final res = await VideoHttp.coinVideo(
+      bvid: bvid,
+      multiply: multiply,
+      selectLike: coinWithLike ? 1 : 0,
+    );
+    if (res case Success()) {
+      coined[index] = true;
+      if (coinWithLike) liked[index] = true;
+      GlobalData().afterCoin(multiply);
+      SmartDialog.showToast('投币成功');
+    } else {
+      res.toast();
+    }
+  }
+
+  /// 展开/收起右侧评论区
+  void openReply(int index) {
+    if (index < 0 || index >= feedList.length) return;
+    final bvid = feedList[index].bvid;
+    if (bvid == null) {
+      SmartDialog.showToast('这条推荐暂时没有评论区');
+      return;
+    }
+    if (showReply.value && replyBvid.value == bvid) {
+      showReply.value = false;
+      return;
+    }
+    replyBvid.value = bvid;
+    showReply.value = true;
   }
 
   @override
