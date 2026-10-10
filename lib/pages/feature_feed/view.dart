@@ -65,6 +65,8 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
   Timer? _wheelLock;
   double _wheelAccum = 0;
   double? _dragValue;
+  /// 弹幕设置面板是否展开(内联面板,不走 navigator)
+  final RxBool _probeOpen = false.obs;
 
   void _attachPlayingStream() {
     if (_playingSub != null) return;
@@ -265,6 +267,19 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
           _buildTextOverlay(),
           _buildActionRail(),
           _buildControlBar(),
+          // 弹幕设置面板直接画在 Stack 里(不走 navigator)。
+          // 原来用 showModalBottomSheet,按钮能收到点击但面板始终不弹出 ——
+          // 内联渲染绕开 navigator/Overlay 依赖,必定可见。
+          Obx(() => _probeOpen.value
+              ? Positioned(
+                  right: 76,
+                  bottom: 56,
+                  width: 320,
+                  child: _DanmakuSettingPanel(
+                    onClose: () => _probeOpen.value = false,
+                  ),
+                )
+              : const SizedBox.shrink()),
         ],
       );
 
@@ -481,15 +496,8 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     return IconButton(
       tooltip: '弹幕设置',
       onPressed: () {
+        _probeOpen.toggle();
         _pokeBar();
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: const Color(0xFF1E1E22),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          builder: (_) => const _DanmakuSettingSheet(),
-        );
       },
       icon: const Icon(Icons.tune, color: Colors.white, size: 20),
     );
@@ -697,8 +705,10 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
 }
 /// 弹幕设置面板:改完即时生效(updateOption)并写回偏好。
 /// 与视频页共用同一套 DanmakuOptions / danmakuOpacity,所以两边同步。
-class _DanmakuSettingSheet extends StatelessWidget {
-  const _DanmakuSettingSheet();
+class _DanmakuSettingPanel extends StatelessWidget {
+  const _DanmakuSettingPanel({this.onClose});
+
+  final VoidCallback? onClose;
 
   PlPlayerController get _player => PlPlayerController.getInstance();
 
@@ -711,22 +721,38 @@ class _DanmakuSettingSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const labelStyle = TextStyle(color: Colors.white, fontSize: 13);
-    return SafeArea(
+    return Material(
+      color: const Color(0xF21E1E22),
+      borderRadius: BorderRadius.circular(12),
+      elevation: 8,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '弹幕设置',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '弹幕设置',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: '收起',
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Obx(
               () => SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -776,7 +802,7 @@ class _DanmakuSettingSheet extends StatelessWidget {
                 _apply();
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
           ],
         ),
       ),
