@@ -513,53 +513,98 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                     ),
                   ),
                   Expanded(
-                    // 与视频详情页/B站客户端同款的进度条:细轨 + 缓冲条 + 可拖圆点。
-                    // 拖动时用 _dragValue 跟随手指,松手才真正 seek(避免拖动中反复跳转)。
+                    // 进度条:**只让它负责画**,手势由外面这层自己做。
+                    //
+                    // 为什么不让 ProgressBar 自己收手势:它是 LeafRenderObjectWidget,
+                    // 命中区域就是它自己的渲染框,而那个框只有 barHeight(3.5) ~
+                    // 圆点直径(10) 那么高 —— 必须**精确压在那条细线上**才抓得住。
+                    // 用户反馈"暂停时拖不动"就是这个原因(能拖到纯属 y 碰巧对上)。
+                    // 现在外面套一层 26px 高的手势区,点/拖都宽松得多。
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Obx(() {
-                        final dur = _player.duration.value;
-                        final maxMs = dur <= 0 ? 0 : dur;
-                        // 拖动中用 _dragMs 预览;它是响应式的,所以这里只会重建
-                        // 进度条本身,不会整页 setState
-                        final dragMs = _dragMs.value;
-                        final shown = dragMs >= 0
-                            ? Duration(milliseconds: dragMs).inSeconds
-                            : _player.progress;
-                        return ProgressBar(
-                          progress: shown.clamp(0, maxMs),
-                          buffered: _player.buffered.value.clamp(0, maxMs),
-                          total: dur,
-                          onDragStart: (ThumbDragDetails d) {
-                            _dragMs.value = d.seconds * 1000;
-                            _pokeBar();
-                          },
-                          onDragUpdate: (ThumbDragDetails d) {
-                            _dragMs.value = d.seconds * 1000;
-                          },
-                          // onSeek 才是"拿到最终落点(毫秒)"的回调,拖动与
-                          // 无障碍增减都走它;onDragEnd 只是收尾。
-                          onSeek: (int ms) {
-                            if (ms > 0) {
-                              _player.seekTo(
-                                Duration(milliseconds: ms),
-                                isSeek: true,
-                              );
-                            }
-                          },
-                          onDragEnd: () {
-                            _dragMs.value = -1;
-                            _pokeBar();
-                          },
-                          progressBarColor: const Color(0xFFFB7299),
-                          baseBarColor: const Color(0x33FFFFFF),
-                          bufferedBarColor: const Color(0x66FB7299),
-                          thumbColor: const Color(0xFFFB7299),
-                          thumbGlowColor: const Color(0x50FB7299),
-                          barHeight: 3.5,
-                          thumbRadius: 5,
-                        );
-                      }),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final barW = constraints.maxWidth;
+                          void seekToDx(double dx) {
+                            final dur = _player.duration.value;
+                            if (dur <= 0 || barW <= 0) return;
+                            final ratio = (dx / barW).clamp(0.0, 1.0);
+                            _player.seekTo(
+                              Duration(milliseconds: (dur * ratio).round()),
+                              isSeek: true,
+                            );
+                          }
+
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTapDown: (d) {
+                              _pokeBar();
+                              seekToDx(d.localPosition.dx);
+                            },
+                            onHorizontalDragStart: (d) {
+                              _pokeBar();
+                              final dur = _player.duration.value;
+                              if (dur > 0 && barW > 0) {
+                                _dragMs.value =
+                                    (dur *
+                                            (d.localPosition.dx / barW)
+                                                .clamp(0.0, 1.0))
+                                        .round();
+                              }
+                            },
+                            onHorizontalDragUpdate: (d) {
+                              final dur = _player.duration.value;
+                              if (dur > 0 && barW > 0) {
+                                _dragMs.value =
+                                    (dur *
+                                            (d.localPosition.dx / barW)
+                                                .clamp(0.0, 1.0))
+                                        .round();
+                              }
+                            },
+                            onHorizontalDragEnd: (_) {
+                              final ms = _dragMs.value;
+                              if (ms > 0) {
+                                _player.seekTo(
+                                  Duration(milliseconds: ms),
+                                  isSeek: true,
+                                );
+                              }
+                              _dragMs.value = -1;
+                              _pokeBar();
+                            },
+                            onHorizontalDragCancel: () => _dragMs.value = -1,
+                            child: SizedBox(
+                              height: 26,
+                              child: Center(
+                                child: Obx(() {
+                                  final dur = _player.duration.value;
+                                  final maxMs = dur <= 0 ? 0 : dur;
+                                  final dragMs = _dragMs.value;
+                                  final shown = dragMs >= 0
+                                      ? Duration(milliseconds: dragMs).inSeconds
+                                      : _player.progress;
+                                  return ProgressBar(
+                                    progress: shown.clamp(0, maxMs),
+                                    buffered: _player.buffered.value.clamp(
+                                      0,
+                                      maxMs,
+                                    ),
+                                    total: dur,
+                                    progressBarColor: const Color(0xFFFB7299),
+                                    baseBarColor: const Color(0x33FFFFFF),
+                                    bufferedBarColor: const Color(0x66FB7299),
+                                    thumbColor: const Color(0xFFFB7299),
+                                    thumbGlowColor: const Color(0x50FB7299),
+                                    barHeight: 3.5,
+                                    thumbRadius: 5,
+                                  );
+                                }),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   Obx(
