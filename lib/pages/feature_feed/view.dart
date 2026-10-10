@@ -5,13 +5,14 @@ import 'package:PiliPlus/models/home/rcmd/result.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/pages/danmaku/view.dart';
 import 'package:PiliPlus/pages/feature_feed/controller.dart';
+import 'package:PiliPlus/pages/feature_feed/reply_panel.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/video/pay_coins/view.dart';
-import 'package:PiliPlus/pages/video/reply/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/volume_btn.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
+import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -268,9 +269,11 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
               curve: Curves.easeOutCubic,
               width: open ? 400 : 0,
               child: open
-                  ? VideoReplyPanel(
+                  ? FeatureReplyPanel(
+                      key: ValueKey(bvid),
+                      oid: IdUtils.bv2av(bvid),
                       heroTag: _controller.replyTagFor(bvid),
-                      isNested: true,
+                      onClose: () => _controller.showReply.value = false,
                     )
                   : const SizedBox.shrink(),
             ),
