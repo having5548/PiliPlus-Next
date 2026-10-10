@@ -10,7 +10,6 @@ import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/video/pay_coins/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
-import 'package:PiliPlus/plugin/pl_player/widgets/volume_btn.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
@@ -64,7 +63,25 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
   Timer? _barTimer;
   Timer? _wheelLock;
   double _wheelAccum = 0;
-  double? _dragValue;
+
+  /// 拖动进度条时的预览位置(毫秒);-1 表示没在拖。
+  /// 用响应式变量而不是 setState —— 拖动时每帧 setState 会重建整页,
+  /// 拖起来发涩,而且容易和页面里的手势打架。
+  final RxInt _dragMs = (-1).obs;
+
+  /// 光标是否停在画面上。悬停即显示控制条(不必先点一下或暂停)。
+  final RxBool _hovering = false.obs;
+  Timer? _hoverTimer;
+
+  /// 光标是否停在底部控制条上(非响应式即可,只用于滚轮判界)
+  bool _pointerOnBar = false;
+
+  /// 静音前的音量,用于取消静音时恢复
+  double _lastVolume = -1;
+
+  /// 评论区自己的滚动控制器:评论面板打开时方向键滚它,而不是切视频
+  final ScrollController _replyScrollCtrl = ScrollController();
+
   /// 弹幕设置面板是否展开(内联面板,不走 navigator)
   final RxBool _probeOpen = false.obs;
 
@@ -127,6 +144,8 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     _frameProbe?.cancel();
     _barTimer?.cancel();
     _wheelLock?.cancel();
+    _hoverTimer?.cancel();
+    _replyScrollCtrl.dispose();
     _pageController.dispose();
     // 取消自动播放回调,否则控制器已销毁时 playIfExists 会打到旧实例上
     _controller.unbindAutoPlay();
@@ -155,9 +174,33 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     _scheduleBarHide();
   }
 
+  /// 控制条自动隐藏。
+  /// 光标还停在画面上、或者正在拖进度条时**不隐藏** —— 否则拖到一半条就没了。
   void _scheduleBarHide() {
     _barTimer?.cancel();
     _barTimer = Timer(const Duration(seconds: 3), () {
+      if (!_playing.value) return;
+      if (_hovering.value) return;
+      if (_dragMs.value >= 0) return;
+      if (_probeOpen.value) return;
+      _showBar.value = false;
+    });
+  }
+
+  /// 光标进入底部热区 → 显示控制条(不用先点一下或者暂停)
+  void _onEnterBarZone() {
+    _hoverTimer?.cancel();
+    _hovering.value = true;
+    _pokeBar();
+  }
+
+  /// 光标离开底部热区:稍等一下再判定,避免在控件之间移动时闪来闪去
+  void _onExitBarZone() {
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 260), () {
+      if (!mounted) return;
+      _hovering.value = false;
+      _barTimer?.cancel();
       if (_playing.value) _showBar.value = false;
     });
   }
@@ -180,10 +223,31 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     );
   }
 
-  /// 键盘:上/下切换视频,空格播放暂停
+  /// 键盘:上/下切换视频,空格播放暂停。
+  /// **评论面板打开时把方向键让给评论列表** —— 用户只是想看/滚评论,
+  /// 这时候再切视频非常烦人。
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
+
+    if (_controller.showReply.value) {
+      if (key == LogicalKeyboardKey.arrowDown ||
+          key == LogicalKeyboardKey.arrowUp) {
+        if (_replyScrollCtrl.hasClients) {
+          final pos = _replyScrollCtrl.position;
+          final delta = key == LogicalKeyboardKey.arrowDown ? 120.0 : -120.0;
+          final target = (pos.pixels + delta).clamp(
+            pos.minScrollExtent,
+            pos.maxScrollExtent,
+          );
+          _replyScrollCtrl.jumpTo(target);
+        }
+        return KeyEventResult.handled;
+      }
+      // 空格之类也交给评论面板,不要在看不见的播放器上生效
+      return KeyEventResult.ignored;
+    }
+
     if (key == LogicalKeyboardKey.arrowDown) {
       _gotoPage(_current + 1);
       return KeyEventResult.handled;
@@ -199,9 +263,11 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     return KeyEventResult.ignored;
   }
 
-  /// 滚轮:一格一个;动画期间丢弃后续事件,避免粘黏/连跳
+  /// 滚轮:一格一个;动画期间丢弃后续事件,避免粘黏/连跳。
+  /// **光标在控制条上时不响应** —— 否则在音量按钮上滚轮调音量会连视频一起切。
   void _onWheel(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
+    if (_pointerOnBar) return;
     if (_wheelLock?.isActive ?? false) return;
     _wheelAccum += event.scrollDelta.dy;
     if (_wheelAccum.abs() < 60) return;
@@ -280,8 +346,38 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                   ),
                 )
               : const SizedBox.shrink()),
+          // 悬停热区:**只是画面底部一条**(控制条所在区域 + 上方一点),
+          // 不是整屏。用户明确要求"范围别那么大" —— 光标扫过画面中央不该弹条。
+          // opaque:false 保证它不吃点击,下面的播放手势照常收到。
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 96,
+            child: MouseRegion(
+              opaque: false,
+              onEnter: (_) => _onEnterBarZone(),
+              onExit: (_) => _onExitBarZone(),
+              onHover: (_) => _onEnterBarZone(),
+              child: const SizedBox.expand(),
+            ),
+          ),
         ],
       );
+
+      // 键盘与滚轮:**只作用在舞台上** —— 评论区在 Row 的另一侧,
+      // 所以滚轮滚评论、方向键滚评论都不会再触发"切换视频"。
+      Widget stageWrapped = Focus(
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: stage,
+      );
+      if (PlatformUtils.isDesktop) {
+        stageWrapped = Listener(
+          onPointerSignal: _onWheel,
+          child: stageWrapped,
+        );
+      }
 
       // 评论区像抖音那样从右侧展开:展开时左侧舞台自动缩窄,播放器跟着变小
       final body = Obx(() {
@@ -290,7 +386,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: stage),
+            Expanded(child: stageWrapped),
             AnimatedContainer(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeOutCubic,
@@ -300,6 +396,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                       key: ValueKey(bvid),
                       oid: IdUtils.bv2av(bvid),
                       heroTag: _controller.replyTagFor(bvid),
+                      scrollController: _replyScrollCtrl,
                       onClose: () => _controller.showReply.value = false,
                     )
                   : const SizedBox.shrink(),
@@ -308,14 +405,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
         );
       });
 
-      final focused = Focus(
-        autofocus: true,
-        onKeyEvent: _onKey,
-        child: body,
-      );
-
-      if (!PlatformUtils.isDesktop) return focused;
-      return Listener(onPointerSignal: _onWheel, child: focused);
+      return body;
     });
   }
 
@@ -375,7 +465,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     });
   }
 
-  /// 底部控制条:暂停常驻,播放中 3 秒后滑出隐藏
+  /// 底部控制条:光标在画面上时出现;播放中且光标离开、没在拖时滑出隐藏
   Widget _buildControlBar() {
     return Positioned(
       left: 0,
@@ -383,14 +473,28 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
       bottom: 0,
       child: Obx(
         () {
-          final show = _showBar.value || !_playing.value;
+          final show = _showBar.value || !_playing.value || _hovering.value;
           return AnimatedSlide(
             offset: show ? Offset.zero : const Offset(0, 1),
             duration: const Duration(milliseconds: 220),
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.55),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
+            child: MouseRegion(
+              // 光标在控制条上:显示条 + 让滚轮只作用于控件(调音量),
+              // 不要再去切换视频
+              onEnter: (_) {
+                _pointerOnBar = true;
+                _pokeBar();
+              },
+              onExit: (_) {
+                _pointerOnBar = false;
+                _onExitBarZone();
+              },
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.55),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
                 children: [
                   IconButton(
                     onPressed: _togglePlay,
@@ -415,27 +519,36 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Obx(() {
                         final dur = _player.duration.value;
-                        final shown = _dragValue?.round() ?? _player.progress;
+                        final maxMs = dur <= 0 ? 0 : dur;
+                        // 拖动中用 _dragMs 预览;它是响应式的,所以这里只会重建
+                        // 进度条本身,不会整页 setState
+                        final dragMs = _dragMs.value;
+                        final shown = dragMs >= 0
+                            ? Duration(milliseconds: dragMs).inSeconds
+                            : _player.progress;
                         return ProgressBar(
-                          progress: shown.clamp(0, dur <= 0 ? 0 : dur),
-                          buffered: _player.buffered.value.clamp(
-                            0,
-                            dur <= 0 ? 0 : dur,
-                          ),
+                          progress: shown.clamp(0, maxMs),
+                          buffered: _player.buffered.value.clamp(0, maxMs),
                           total: dur,
-                          onDragStart: (ThumbDragDetails d) => _pokeBar(),
-                          onDragUpdate: (ThumbDragDetails d) =>
-                              setState(() => _dragValue = d.seconds.toDouble()),
-                          // onDragEnd 是无参回调,落点用 onDragUpdate 记下的 _dragValue
-                          onDragEnd: () {
-                            final target = _dragValue?.round();
-                            if (target != null) {
+                          onDragStart: (ThumbDragDetails d) {
+                            _dragMs.value = d.seconds * 1000;
+                            _pokeBar();
+                          },
+                          onDragUpdate: (ThumbDragDetails d) {
+                            _dragMs.value = d.seconds * 1000;
+                          },
+                          // onSeek 才是"拿到最终落点(毫秒)"的回调,拖动与
+                          // 无障碍增减都走它;onDragEnd 只是收尾。
+                          onSeek: (int ms) {
+                            if (ms > 0) {
                               _player.seekTo(
-                                Duration(seconds: target),
+                                Duration(milliseconds: ms),
                                 isSeek: true,
                               );
                             }
-                            setState(() => _dragValue = null);
+                          },
+                          onDragEnd: () {
+                            _dragMs.value = -1;
                             _pokeBar();
                           },
                           progressBarColor: const Color(0xFFFB7299),
@@ -460,15 +573,78 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                   _danmakuButton(),
                   const SizedBox(width: 2),
                   _danmakuSettingButton(context),
-                  const SizedBox(width: 2),
-                  VolumeButton(plPlayerController: _player),
+                  // 音量:图标(点击静音) + **可见滑条**。
+                  // 之前只有一个图标、只能滚轮调,而且滚轮会连视频一起切 ——
+                  // 这里给一条能拖的滑条,并把滚轮事件挡在控制条里。
+                  _volumeIcon(),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: SizedBox(
+                      width: 96,
+                      child: Obx(() {
+                        final maxV = _player.maxVolume;
+                        final v = _player.volume.value.clamp(0.0, maxV);
+                        return SliderTheme(
+                          data: const SliderThemeData(
+                            trackHeight: 3,
+                            activeTrackColor: Color(0xFFFB7299),
+                            inactiveTrackColor: Color(0x33FFFFFF),
+                            thumbColor: Color(0xFFFB7299),
+                            overlayColor: Color(0x33FB7299),
+                            thumbShape: RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
+                            ),
+                            overlayShape: RoundSliderOverlayShape(
+                              overlayRadius: 11,
+                            ),
+                          ),
+                          child: Slider(
+                            value: v,
+                            max: maxV <= 0 ? 1 : maxV,
+                            onChanged: (nv) {
+                              _player.setVolume(nv, showIndicator: false);
+                              _pokeBar();
+                            },
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
                 ],
               ),
             ),
+          ),
           );
         },
       ),
     );
+  }
+
+  /// 音量图标:点击静音 / 恢复
+  Widget _volumeIcon() {
+    return Obx(() {
+      final volume = _player.volume.value;
+      final maxVolume = _player.maxVolume;
+      final icon = volume <= 0.001
+          ? Icons.volume_off
+          : (volume < maxVolume * 0.5 ? Icons.volume_down : Icons.volume_up);
+      return IconButton(
+        tooltip: '音量 ${(maxVolume <= 0 ? 0 : (volume / maxVolume * 100)).round()}%',
+        onPressed: () {
+          if (volume > 0) {
+            _lastVolume = volume;
+            _player.setVolume(0, showIndicator: false);
+          } else {
+            _player.setVolume(
+              _lastVolume > 0 ? _lastVolume : maxVolume / 2,
+              showIndicator: false,
+            );
+          }
+          _pokeBar();
+        },
+        icon: Icon(icon, color: Colors.white, size: 20),
+      );
+    });
   }
 
   /// 弹幕显示开关(一键开关,不用进设置)

@@ -64,6 +64,7 @@ class FeatureReplyPanel extends StatefulWidget {
     required this.oid,
     required this.heroTag,
     this.replyType = 1,
+    this.scrollController,
     this.onClose,
   });
 
@@ -72,6 +73,9 @@ class FeatureReplyPanel extends StatefulWidget {
 
   /// 1 = 投稿视频(与 VideoType.ugc.replyType 一致)
   final int replyType;
+
+  /// 由外层传入,这样方向键可以滚这个列表(而不是切换视频)
+  final ScrollController? scrollController;
   final VoidCallback? onClose;
 
   @override
@@ -96,38 +100,106 @@ class _FeatureReplyPanelState extends State<FeatureReplyPanel>
     final colorScheme = ColorScheme.of(context);
     return ColoredBox(
       color: colorScheme.surface,
-      child: Stack(
+      child: Column(
         children: [
-          Positioned.fill(
-            child: fabAnimWrapper(
-              child: refreshIndicator(
-                onRefresh: _controller.onRefresh,
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    _header(colorScheme),
-                    Obx(
-                      () => _body(
-                        colorScheme,
-                        _controller.loadingState.value,
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: fabAnimWrapper(
+                    child: refreshIndicator(
+                      onRefresh: _controller.onRefresh,
+                      child: CustomScrollView(
+                        controller: widget.scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          _header(colorScheme),
+                          Obx(
+                            () => _body(
+                              colorScheme,
+                              _controller.loadingState.value,
+                            ),
+                          ),
+                          // 给底部发送栏留出高度,避免最后一条评论被挡
+                          const SliverToBoxAdapter(child: SizedBox(height: 56)),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
+                ),
+                Positioned(
+                  left: 8,
+                  top: 6,
+                  child: IconButton(
+                    tooltip: '关闭评论',
+                    onPressed: widget.onClose,
+                    icon: const Icon(Icons.close, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _sendBar(colorScheme),
+        ],
+      ),
+    );
+  }
+
+  /// 底部发送栏:点它进入项目自带的评论编辑页(ReplyPage)。
+  /// 用它而不是自己拼发送请求 —— 防刷校验、@ 提及、图片、草稿都交给它,
+  /// 发完回来后 `onReply` 会把新评论插进列表。
+  Widget _sendBar(ColorScheme colorScheme) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: _onSend,
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  alignment: Alignment.centerLeft,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    _hint,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: colorScheme.outline,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 8,
-            top: 6,
-            child: IconButton(
-              tooltip: '关闭评论',
-              onPressed: widget.onClose,
-              icon: const Icon(Icons.close, size: 20),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: '发送评论',
+              onPressed: _onSend,
+              icon: Icon(Icons.send, size: 20, color: colorScheme.primary),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  String get _hint {
+    final (inputDisable, hint) = _controller.replyHint;
+    if (inputDisable) return hint ?? '当前无法评论';
+    return hint ?? '发一条友善的评论';
+  }
+
+  void _onSend() {
+    _controller.onReply(
+      null,
+      oid: widget.oid,
+      replyType: widget.replyType,
     );
   }
 
