@@ -1304,11 +1304,12 @@ packages:
   octo_image:
     dependency: transitive
     description:
-      name: octo_image
-      sha256: "66e8f59a538a9f9f53141bc22ec0a12f8e85f2ca3bfcacab6dd30315b2fc256d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.1"
+      path: "."
+      ref: dev
+      resolved-ref: "78472680933ac632e2f1ee1eb5994ca2951d562c"
+      url: "https://github.com/bggRGjQaUbCoE/octo_image.git"
+    source: git
+    version: "2.1.2"
   package_config:
     dependency: transitive
     description:
@@ -2039,4 +2040,4 @@ packages:
     version: "3.1.4"
 sdks:
   dart: ">=3.13.0 <4.0.0"
-  flutter: "3.47.7"
+  flutter: "3.47.6"
