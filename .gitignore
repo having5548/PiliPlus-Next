@@ -154,3 +154,5 @@ test/*.apk
 test/*.zip
 test/*.dmg
 test/*.ipa
+
+test/*.exe
