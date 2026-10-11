@@ -178,6 +178,3 @@
 - 所用 API 皆从官方网站收集，不提供任何破解内容
 - 本项目基于 [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus) 修改，依据 **GNU GPL-3.0** 许可证开源分发，许可证全文见 [LICENSE](LICENSE)。修改内容为本仓库新增的提交，原版权与许可证声明均予保留
 
-## Star History
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=bggRGjQaUbCoE/PiliPlus&type=Date)](https://star-history.dera.page/#bggRGjQaUbCoE/PiliPlus&Date)
