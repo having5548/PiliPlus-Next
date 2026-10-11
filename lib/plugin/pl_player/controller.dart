@@ -1211,13 +1211,28 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   Future<void> seek(Duration position, {bool isSeek = false}) async {
     if (isSeek) {
-      /// 拖动进度条调节时，不等待第一帧，防止抖动
-      await _videoPlayerController?.stream.buffer.first;
+      /// 拖动进度条调节时，不等待第一帧，防止抖动。
+      ///
+      /// **必须设上限**：`stream.buffer` 在**暂停**时不一定会再发射事件，
+      /// 于是这个 await 会永久挂起、后面的 seek 根本执行不到 ——
+      /// 表现就是"暂停时拖/点进度条完全没反应"（2026-10-11 用探针实测确认：
+      /// onTapDown 正常触发、目标算对，但 position 一直不变）。
+      await _videoPlayerController?.stream.buffer.first.timeout(
+        const Duration(milliseconds: 400),
+        onTimeout: () => Duration.zero,
+      );
     }
     danmakuController?.clear();
     try {
       await _videoPlayerController?.seek(position);
       _updateIOSPip(position);
+      // 主动同步一次位置。
+      // position.value 平时只由 stream.position 监听器更新，而**暂停时播放器
+      // 不一定回传位置**，于是 seek 完进度条/时间会停在旧值。
+      final posInSeconds = position.inSeconds;
+      if (posInSeconds != this.position.value) {
+        this.position.value = posInSeconds;
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('seek failed: $e');
     }

@@ -64,10 +64,10 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
   Timer? _wheelLock;
   double _wheelAccum = 0;
 
-  /// 拖动进度条时的预览位置(毫秒);-1 表示没在拖。
+  /// 拖动进度条时的预览位置(**秒**,与 PlPlayerController.progress 同单位);-1 表示没在拖。
   /// 用响应式变量而不是 setState —— 拖动时每帧 setState 会重建整页,
   /// 拖起来发涩,而且容易和页面里的手势打架。
-  final RxInt _dragMs = (-1).obs;
+  final RxInt _dragSec = (-1).obs;
 
   /// 光标是否停在画面上。悬停即显示控制条(不必先点一下或暂停)。
   final RxBool _hovering = false.obs;
@@ -181,7 +181,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     _barTimer = Timer(const Duration(seconds: 3), () {
       if (!_playing.value) return;
       if (_hovering.value) return;
-      if (_dragMs.value >= 0) return;
+      if (_dragSec.value >= 0) return;
       if (_probeOpen.value) return;
       _showBar.value = false;
     });
@@ -520,6 +520,12 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                     // 圆点直径(10) 那么高 —— 必须**精确压在那条细线上**才抓得住。
                     // 用户反馈"暂停时拖不动"就是这个原因(能拖到纯属 y 碰巧对上)。
                     // 现在外面套一层 26px 高的手势区,点/拖都宽松得多。
+                    //
+                    // ⚠️ 单位:`PlPlayerController.duration/progress` 都是**秒**
+                    // (`updateDuration` 里就是 `value.inSeconds`),`ProgressBar` 的
+                    // progress/total 也是秒。这里必须用 `Duration(seconds:)` ——
+                    // 之前误用 `Duration(milliseconds:)`,点 11:32 的位置实际只 seek
+                    // 到 0.57 秒,表现成"拖了没反应"。
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: LayoutBuilder(
@@ -530,7 +536,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                             if (dur <= 0 || barW <= 0) return;
                             final ratio = (dx / barW).clamp(0.0, 1.0);
                             _player.seekTo(
-                              Duration(milliseconds: (dur * ratio).round()),
+                              Duration(seconds: (dur * ratio).round()),
                               isSeek: true,
                             );
                           }
@@ -545,7 +551,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                               _pokeBar();
                               final dur = _player.duration.value;
                               if (dur > 0 && barW > 0) {
-                                _dragMs.value =
+                                _dragSec.value =
                                     (dur *
                                             (d.localPosition.dx / barW)
                                                 .clamp(0.0, 1.0))
@@ -555,7 +561,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                             onHorizontalDragUpdate: (d) {
                               final dur = _player.duration.value;
                               if (dur > 0 && barW > 0) {
-                                _dragMs.value =
+                                _dragSec.value =
                                     (dur *
                                             (d.localPosition.dx / barW)
                                                 .clamp(0.0, 1.0))
@@ -563,32 +569,41 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                               }
                             },
                             onHorizontalDragEnd: (_) {
-                              final ms = _dragMs.value;
-                              if (ms > 0) {
+                              final sec = _dragSec.value;
+                              if (sec > 0) {
                                 _player.seekTo(
-                                  Duration(milliseconds: ms),
+                                  Duration(seconds: sec),
                                   isSeek: true,
                                 );
+                                // seekTo 是异步的(要等第一帧),等它把 position
+                                // 落下去再撤预览,否则进度条会"回弹"一下
+                                Future.delayed(
+                                  const Duration(milliseconds: 320),
+                                  () {
+                                    if (mounted) _dragSec.value = -1;
+                                  },
+                                );
+                              } else {
+                                _dragSec.value = -1;
                               }
-                              _dragMs.value = -1;
                               _pokeBar();
                             },
-                            onHorizontalDragCancel: () => _dragMs.value = -1,
+                            onHorizontalDragCancel: () => _dragSec.value = -1,
                             child: SizedBox(
                               height: 26,
                               child: Center(
                                 child: Obx(() {
                                   final dur = _player.duration.value;
-                                  final maxMs = dur <= 0 ? 0 : dur;
-                                  final dragMs = _dragMs.value;
-                                  final shown = dragMs >= 0
-                                      ? Duration(milliseconds: dragMs).inSeconds
+                                  final maxSec = dur <= 0 ? 0 : dur;
+                                  final dragSec = _dragSec.value;
+                                  final shown = dragSec >= 0
+                                      ? dragSec
                                       : _player.progress;
                                   return ProgressBar(
-                                    progress: shown.clamp(0, maxMs),
+                                    progress: shown.clamp(0, maxSec),
                                     buffered: _player.buffered.value.clamp(
                                       0,
-                                      maxMs,
+                                      maxSec,
                                     ),
                                     total: dur,
                                     progressBarColor: const Color(0xFFFB7299),
