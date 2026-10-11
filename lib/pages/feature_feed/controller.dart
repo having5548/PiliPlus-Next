@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
-import 'package:PiliPlus/models/home/rcmd/result.dart';
+import 'package:PiliPlus/models/model_rec_video_item.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/pages/rcmd/controller.dart';
@@ -17,12 +17,51 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 
 /// 精选:抖音式竖滑推荐流。
-/// 内容来自 app 推荐接口,但排除主页推荐 tab 已经展示过的视频。
+///
+/// **推荐源跟随设置**,与首页推荐 tab 保持一致 —— 也就是
+/// 「设置 → 推荐流设置 → 使用 App 推荐」(`Pref.appRcmd`):
+/// 关掉它就是 **PC 网页端**推荐(`/x/web-interface/index/top/feed/rcmd`)。
+/// 精选页以前写死了 App 端接口,所以那个开关对它不起作用。
+///
+/// 另外网页端接口会返回 `pubdate`,据此把**发布时间过旧**的老视频挡掉
+/// (见 [_maxAgeDays]);App 端接口不返回 `pubdate`,这条对它无效。
 class FeatureFeedController extends GetxController {
-  final RxList<RcmdVideoItemAppModel> feedList = <RcmdVideoItemAppModel>[].obs;
+  /// 两种推荐源的公共基类:App 端 `RcmdVideoItemAppModel` 与
+  /// 网页端 `RcmdVideoItemModel` 都继承它
+  final RxList<BaseRcmdVideoItemModel> feedList =
+      <BaseRcmdVideoItemModel>[].obs;
   final RxBool isLoading = false.obs;
   int _page = 0;
   bool _hasMore = true;
+
+  /// 发布时间超过这个天数的视频不进精选流。
+  ///
+  /// 用户反馈"时间跨度大的视频也推我" —— 精选是竖滑的新鲜内容流,混进
+  /// 几个月前的旧视频体验很差。实测网页端返回的流年龄跨度是 13~161 天,
+  /// 取 **90 天**能真正裁掉那条长尾,又不至于把流抽干(拉不满时会自动
+  /// 多拉几页,见 [loadMore] 里 guard 的 3 次上限)。要调就改这一个常量。
+  ///
+  /// 只在能拿到 `pubdate` 时有意义(网页端);拿不到(如 App 端接口)则跳过判定。
+  static const int _maxAgeDays = 90;
+
+  /// 这条推荐是否允许进流(纯判定,不含与已加载列表的去重)
+  static bool _acceptRcmd(
+    BaseRcmdVideoItemModel item,
+    Set<String> excluded,
+    int oldestPubdate,
+  ) {
+    // 只要普通投稿视频(live / 番剧 / 广告等一律不要)
+    if (item.goto != 'av') return false;
+    final bvid = item.bvid;
+    if (bvid == null || item.cid == null) return false;
+    // 主页推荐 tab 已经展示过的,不重复推
+    if (excluded.contains(bvid)) return false;
+    final pubdate = item.pubdate;
+    if (pubdate != null && pubdate > 0 && pubdate < oldestPubdate) {
+      return false;
+    }
+    return true;
+  }
 
   /// 主页推荐 tab 已展示的 bvid(排除用)
   Set<String> _homeShownBvids() {
@@ -51,32 +90,52 @@ class FeatureFeedController extends GetxController {
     if (!_hasMore) return;
     isLoading.value = true;
     final excluded = _homeShownBvids();
+    // 推荐源跟随设置,与首页推荐 tab 一致
+    final appRcmd = Pref.appRcmd;
+    // "过旧"的判定基准:早于这个时间戳的不要
+    final oldestPubdate =
+        DateTime.now()
+            .subtract(const Duration(days: _maxAgeDays))
+            .millisecondsSinceEpoch ~/
+        1000;
     try {
       int guard = 0;
-      List<RcmdVideoItemAppModel>? picked;
+      List<BaseRcmdVideoItemModel>? picked;
       // 一页推荐里可能大半都在主页出现过,多拉几页直到凑出内容
       while (picked == null || picked.isEmpty) {
         if (guard++ >= 3 || !_hasMore) break;
-        final res = await VideoHttp.rcmdVideoListApp(freshIdx: _page);
-        _page++;
-        if (res case Success(:final response)) {
-          if (response.isEmpty) {
-            _hasMore = false;
-            break;
+        // App 端与网页端返回的是不同的模型,统一收进基类列表
+        List<BaseRcmdVideoItemModel>? got;
+        if (appRcmd) {
+          final res = await VideoHttp.rcmdVideoListApp(freshIdx: _page);
+          if (res case Success(:final response)) {
+            got = response;
           }
-          picked = [
-            for (final item in response)
-              if (item.goto == 'av' &&
-                  item.bvid != null &&
-                  item.cid != null &&
-                  !excluded.contains(item.bvid) &&
-                  !feedList.any((e) => e.bvid == item.bvid))
-                item,
-          ];
         } else {
+          final res = await VideoHttp.rcmdVideoList(
+            freshIdx: _page,
+            ps: 20,
+          );
+          if (res case Success(:final response)) {
+            got = response;
+          }
+        }
+        _page++;
+        if (got == null) {
+          // 取流失败(非空但为空列表也算无更多)
           _hasMore = false;
           break;
         }
+        if (got.isEmpty) {
+          _hasMore = false;
+          break;
+        }
+        picked = [
+          for (final item in got)
+            if (_acceptRcmd(item, excluded, oldestPubdate) &&
+                !feedList.any((e) => e.bvid == item.bvid))
+              item,
+        ];
       }
       if (picked != null && picked.isNotEmpty) {
         if (refresh) {

@@ -9,8 +9,8 @@ import 'package:material_ui/material_ui.dart';
 
 List<SettingsModel> get recommendSettings => [
   const SwitchModel(
-    title: '首页使用app端推荐',
-    subtitle: '若web端推荐不太符合预期，可尝试切换至app端推荐',
+    title: '使用app端推荐',
+    subtitle: '作用于首页推荐与精选页:关掉即改用 PC 网页端推荐(更贴近网页端口味)',
     leading: Icon(Icons.model_training_outlined),
     setKey: SettingBoxKey.appRcmd,
     defaultVal: true,

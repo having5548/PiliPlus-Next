@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
-import 'package:PiliPlus/models/home/rcmd/result.dart';
+import 'package:PiliPlus/models/model_rec_video_item.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/pages/danmaku/view.dart';
 import 'package:PiliPlus/pages/feature_feed/controller.dart';
@@ -908,7 +908,7 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
     );
   }
 
-  void _openDetail(RcmdVideoItemAppModel item) {
+  void _openDetail(BaseRcmdVideoItemModel item) {
     final bvid = item.bvid;
     if (bvid == null) return;
     PageUtils.toVideoPage(
