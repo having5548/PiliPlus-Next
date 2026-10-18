@@ -46,6 +46,7 @@ import 'package:PiliPlus/plugin/pl_player/widgets/app_bar_ani.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/backward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/bottom_control.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/common_btn.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/danmaku_input_bar.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/forward_seek.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/mpv_convert_webp.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/play_pause_btn.dart';
@@ -920,7 +921,19 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       if (isNotFileSource && flag) .qa,
       if (!plPlayerController.isDesktopPip) .fullscreen,
     ];
-    return PlayerBar(
+
+    // 内联弹幕输入框。它属于底部控制条的一部分(整条由 AppBarAni 统一滑动
+    // 进出),所以会和其它控件**同时出现、同时消失**,不会被单独遗留。
+    final Widget? danmakuInput = isNotFileSource
+        ? DanmakuInputBar(
+            plPlayerController: plPlayerController,
+            cid: videoDetailController.cid.value,
+            bvid: videoDetailController.bvid,
+            onLongPress: videoDetailController.showShootDanmakuSheet,
+          )
+        : null;
+
+    final bar = PlayerBar(
       left: Row(
         mainAxisSize: .min,
         children: userSpecifyItemLeft.map(progressWidget).toList(),
@@ -929,6 +942,24 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         mainAxisSize: .min,
         children: userSpecifyItemRight.map(progressWidget).toList(),
       ),
+      // 输入框统一走下方那行(见 return),这里不塞 title 槽位
+      title: null,
+    );
+
+    if (danmakuInput == null) {
+      return bar;
+    }
+    // 窄屏(如手机竖屏):按钮行放不下输入框,就单独占一行放在按钮行上方。
+    // 关键:它仍然在底部控制条**内部**,所以照样跟控件一起滑动进出。
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8, right: 8, bottom: 6),
+          child: danmakuInput,
+        ),
+        bar,
+      ],
     );
   }
 

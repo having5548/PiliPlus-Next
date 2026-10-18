@@ -10,6 +10,7 @@ import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/video/pay_coins/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/danmaku_input_bar.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
@@ -494,8 +495,16 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                child: Row(
-                children: [
+                // 宽屏:弹幕输入框并进按钮行(与参考图一致);
+                // 窄屏(手机):放不下就另起一行放在上方。
+                // 两种都在这一个 Container 内 —— 也就是跟着控制条一起
+                // 滑进滑出,不会出现"控件收了输入框还飘着"的割裂感。
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 700;
+                    final input = _buildDanmakuInput();
+                    final bar = Row(
+                      children: [
                   IconButton(
                     onPressed: _togglePlay,
                     icon: Obx(
@@ -628,6 +637,9 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ),
+                  // 内联弹幕输入框:**就在控制条这一行里**,所以跟着整条
+                  // 的 AnimatedSlide 一起进出,不会单独飘着。
+                  if (wide) input,
                   const SizedBox(width: 4),
                   // 弹幕开关 + 弹幕设置(与全屏播放器一样挨着音量放)
                   _danmakuButton(),
@@ -670,12 +682,50 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                       }),
                     ),
                   ),
-                ],
-              ),
+                      ],
+                    );
+                    if (wide) return bar;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: input,
+                        ),
+                        bar,
+                      ],
+                    );
+                  },
+                ),
             ),
           ),
           );
         },
+      ),
+    );
+  }
+
+  /// 控制条里的内联弹幕输入框(随控制条一起进出)。
+  /// 按当前 video 的 bvid+cid 建 key,切视频时输入框状态会自动重置。
+  Widget _buildDanmakuInput() {
+    final index = _current;
+    final list = _controller.feedList;
+    if (index < 0 || index >= list.length) {
+      return const SizedBox.shrink();
+    }
+    final item = list[index];
+    final cid = item.cid;
+    final bvid = item.bvid;
+    return Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: SizedBox(
+        width: 240,
+        child: DanmakuInputBar(
+          key: ValueKey('dmInput_${bvid}_$cid'),
+          plPlayerController: _player,
+          cid: cid,
+          bvid: bvid,
+        ),
       ),
     );
   }
