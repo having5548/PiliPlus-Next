@@ -317,6 +317,8 @@ class MainController extends GetxController
           () => switch (currentNav) {
             .home => homeController.onRefresh(),
             .dynamics => dynamicController.onRefresh(),
+            // 精选页由 FeatureFeedController 自己管刷新(它统一了 bvid 去重与取流)
+            .featured => null,
             .mine => null,
           },
         );
