@@ -17,7 +17,7 @@ import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
     show MainListReply, ReplyInfo;
 import 'package:PiliPlus/grpc/reply.dart';
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/pages/common/reply_controller.dart';
+import 'package:PiliPlus/pages/common/reply/reply_controller.dart';
 
 /// 精选页右侧评论区的控制器。
 ///
@@ -48,8 +48,8 @@ class FeatureReplyController extends ReplyController<MainListReply> {
     type: replyType,
     oid: oid,
     mode: mode,
-    cursorNext: cursorNext,
-    offset: paginationReply?.nextOffset,
+    // 上游把游标分页收敛成 ReplyController.nextOffset
+    offset: nextOffset,
   );
 
   @override

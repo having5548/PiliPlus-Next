@@ -546,7 +546,6 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                             final ratio = (dx / barW).clamp(0.0, 1.0);
                             _player.seekTo(
                               Duration(seconds: (dur * ratio).round()),
-                              isSeek: true,
                             );
                           }
 
@@ -582,7 +581,6 @@ class _FeaturedFeedPageState extends State<FeaturedFeedPage> {
                               if (sec > 0) {
                                 _player.seekTo(
                                   Duration(seconds: sec),
-                                  isSeek: true,
                                 );
                                 // seekTo 是异步的(要等第一帧),等它把 position
                                 // 落下去再撤预览,否则进度条会"回弹"一下

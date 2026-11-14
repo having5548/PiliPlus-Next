@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/models/common/rcmd_source.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models/model_rec_video_item.dart';
@@ -90,8 +91,8 @@ class FeatureFeedController extends GetxController {
     if (!_hasMore) return;
     isLoading.value = true;
     final excluded = _homeShownBvids();
-    // 推荐源跟随设置,与首页推荐 tab 一致
-    final appRcmd = Pref.appRcmd;
+    // 推荐源跟随设置,与首页推荐 tab 一致(app / web / 桌面端)
+    final rcmdSource = Pref.rcmdSource;
     // "过旧"的判定基准:早于这个时间戳的不要
     final oldestPubdate =
         DateTime.now()
@@ -106,19 +107,27 @@ class FeatureFeedController extends GetxController {
         if (guard++ >= 3 || !_hasMore) break;
         // App 端与网页端返回的是不同的模型,统一收进基类列表
         List<BaseRcmdVideoItemModel>? got;
-        if (appRcmd) {
-          final res = await VideoHttp.rcmdVideoListApp(freshIdx: _page);
-          if (res case Success(:final response)) {
-            got = response;
-          }
-        } else {
-          final res = await VideoHttp.rcmdVideoList(
-            freshIdx: _page,
-            ps: 20,
-          );
-          if (res case Success(:final response)) {
-            got = response;
-          }
+        switch (rcmdSource) {
+          case RcmdSource.app:
+            final res = await VideoHttp.rcmdVideoListApp(freshIdx: _page);
+            if (res case Success(:final response)) {
+              got = response;
+            }
+          case RcmdSource.desktop:
+            // 与首页一致:桌面端每次 30 条
+            final res = await VideoHttp.rcmdVideoList(
+              freshIdx: _page,
+              ps: 30,
+              desktop: true,
+            );
+            if (res case Success(:final response)) {
+              got = response;
+            }
+          case RcmdSource.web:
+            final res = await VideoHttp.rcmdVideoList(freshIdx: _page, ps: 20);
+            if (res case Success(:final response)) {
+              got = response;
+            }
         }
         _page++;
         if (got == null) {

@@ -149,10 +149,12 @@ pili_release.json
 
 dist
 
+test*
+!/test/
+!/test/**
 test***/ohos/local.properties
 test/*.apk
 test/*.zip
 test/*.dmg
 test/*.ipa
-
 test/*.exe

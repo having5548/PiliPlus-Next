@@ -1,7 +1,6 @@
 import 'dart:math' show max, min;
 
-import 'package:PiliPlus/models/common/video/audio_quality.dart';
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models_new/sponsor_block/segment_item.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -425,6 +424,24 @@ class Volume {
       targetTp: json["target_tp"] ?? 0,
       // multiSceneArgs: json["multi_scene_args"] == null ? null : MultiSceneArgs.fromJson(json["multi_scene_args"]),
     );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'measured_i': measuredI,
+    'measured_lra': measuredLra,
+    'measured_tp': measuredTp,
+    'measured_threshold': measuredThreshold,
+    'target_offset': targetOffset,
+    'target_i': targetI,
+    'target_tp': targetTp,
+  };
+
+  static Volume? fromCache(dynamic json) {
+    if (json == null) return null;
+    try {
+      return .fromJson(json);
+    } catch (_) {}
+    return null;
   }
 
   String format(Map<String, num> config) {

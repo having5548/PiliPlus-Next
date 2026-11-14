@@ -1,5 +1,5 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
-import 'package:PiliPlus/models/common/video/live_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/pages/live_room/controller.dart';
 import 'package:PiliPlus/pages/video/widgets/header_mixin.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
@@ -72,7 +72,7 @@ class _BottomControlState extends State<BottomControl> with HeaderMixin {
                 color: Colors.white,
               ),
               onTap: () {
-                if (kDebugMode || liveRoomCtr.isLogin) {
+                if (kDebugMode || liveRoomCtr.isMainLogin) {
                   Get.toNamed(
                     '/liveDmBlockPage',
                     parameters: {

@@ -36,7 +36,7 @@ class MainController extends GetxController
   RxBool? showBottomBar;
   late final bool hideBottomBar;
   late final barHideType = Pref.barHideType;
-  bool useBottomNav = false;
+  bool useBottomNav = true;
   late dynamic controller;
   final RxInt selectedIndex = 0.obs;
 
@@ -60,6 +60,7 @@ class MainController extends GetxController
   final enableMYBar = Pref.enableMYBar;
   final floatingNavBar = Pref.floatingNavBar;
   final useSideBar = Pref.useSideBar;
+  final hideSideBarLabel = Pref.hideSideBarLabel;
   final mainTabBarView = Pref.mainTabBarView;
   late final optTabletNav = Pref.optTabletNav;
 
@@ -315,9 +316,9 @@ class MainController extends GetxController
           'topOrRefresh',
           const Duration(milliseconds: 500),
           () => switch (currentNav) {
-            .home => homeController.onRefresh(),
-            .dynamics => dynamicController.onRefresh(),
-            // 精选页由 FeatureFeedController 自己管刷新(它统一了 bvid 去重与取流)
+            .home => homeController.showRefresh(),
+            .dynamics => dynamicController.showRefresh(),
+            // 精选页由 FeatureFeedController 自己管刷新(统一了 bvid 去重与取流)
             .featured => null,
             .mine => null,
           },
@@ -343,7 +344,7 @@ class MainController extends GetxController
     if (navigationBars[selectedIndex.value] == NavigationBarType.home &&
         homeController.tabs[homeController.tabController.index] ==
             HomeTabType.rcmd) {
-      homeController.onRefresh();
+      homeController.showRefresh();
       return true;
     }
     return false;

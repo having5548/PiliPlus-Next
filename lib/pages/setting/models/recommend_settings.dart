@@ -1,30 +1,23 @@
-import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/http/video.dart';
+import 'package:PiliPlus/models/common/rcmd_source.dart';
 import 'package:PiliPlus/pages/rcmd/controller.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
-import 'package:PiliPlus/utils/login_utils.dart';
+import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/utils/recommend_filter.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show FilteringTextInputFormatter;
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:material_ui/material_ui.dart' hide StatefulBuilder;
 
 List<SettingsModel> get recommendSettings => [
   NormalModel(
-    title: 'buvid',
-    leading: const Icon(CustomIcons.identifier_circle),
-    getSubtitle: () => LoginUtils.buvid,
-    onTap: _showBuvidDialog,
-  ),
-  const SwitchModel(
-    title: '使用app端推荐',
-    subtitle: '作用于首页推荐与精选页:关掉即改用 PC 网页端推荐(更贴近网页端口味)',
-    leading: Icon(Icons.model_training_outlined),
-    setKey: SettingBoxKey.appRcmd,
-    defaultVal: true,
-    needReboot: true,
+    title: '首页推荐来源',
+    getSubtitle: () => Pref.rcmdSource.label,
+    leading: const Icon(Icons.swap_horiz_outlined),
+    onTap: _showRcmdSourceDialog,
   ),
   SwitchModel(
     title: '保留首页推荐刷新',
@@ -117,44 +110,47 @@ List<SettingsModel> get recommendSettings => [
   ),
 ];
 
-void _showBuvidDialog(BuildContext context, VoidCallback setState) {
-  String buvid = LoginUtils.buvid;
-  showDialog(
+Future<void> _showRcmdSourceDialog(
+  BuildContext context,
+  VoidCallback setState,
+) async {
+  final res = await showDialog<RcmdSource>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('buvid'),
-      content: TextFormField(
-        autofocus: true,
-        initialValue: buvid,
-        onChanged: (value) => buvid = value,
-        inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r"\s"))],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Get.back();
-            Pref.buvid = LoginUtils.buvid = LoginUtils.generateBuvid();
-            setState();
-          },
-          child: const Text('随机'),
-        ),
-        TextButton(
-          onPressed: Get.back,
-          child: Text(
-            '取消',
-            style: TextStyle(color: ColorScheme.of(context).outline),
-          ),
-        ),
-        TextButton(
-          onPressed: () {
-            Get.back();
-            if (buvid.isEmpty) return;
-            Pref.buvid = LoginUtils.buvid = buvid;
-            setState();
-          },
-          child: const Text('确定'),
-        ),
-      ],
+    builder: (context) => SelectDialog<RcmdSource>(
+      title: '首页推荐来源',
+      value: Pref.rcmdSource,
+      values: RcmdSource.values.map((e) => (e, e.label)).toList(),
+      subtitleBuilder: (context, index, type) {
+        if (type == .desktop) {
+          return const Text(
+            '沿用公开的网页推荐接口，按哔哩哔哩官方 Windows 客户端'
+            '首页实际发送的参数组合请求，不涉及私有接口与设备指纹',
+          );
+        }
+        return null;
+      },
     ),
   );
+  if (res != null) {
+    _switchRcmdSource(res, setState);
+  }
+}
+
+void _switchRcmdSource(RcmdSource value, VoidCallback setState) {
+  // 同步旧键（旧版本只有 app / web 二选一），保证降级后语义一致
+  GStorage.setting
+      .put(SettingBoxKey.appRcmd, value == RcmdSource.app)
+      .whenComplete(setState);
+  GStorage.setting.put(SettingBoxKey.rcmdSource, value.index);
+  try {
+    Get.find<RcmdController>()
+      ..rcmdSource = value
+      ..lastRefreshAt = null
+      // 用 onReload 而不是 onRefresh：切换来源后不应把旧来源的列表
+      // 拼到新来源的数据前面（"保留上次内容"只在同一来源内生效）
+      ..onReload();
+  } catch (e) {
+    if (kDebugMode) debugPrint('$e');
+  }
+  SmartDialog.showToast('已切换为${value.label}');
 }

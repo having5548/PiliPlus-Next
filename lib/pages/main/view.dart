@@ -6,31 +6,19 @@ import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/main_layout.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
-import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
-import 'package:PiliPlus/pages/dynamics/view.dart';
-import 'package:PiliPlus/pages/feature_feed/view.dart';
 import 'package:PiliPlus/pages/home/view.dart';
-import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
-import 'package:PiliPlus/pages/mine/controller.dart';
-import 'package:PiliPlus/pages/mine/view.dart';
-import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/desktop/tray_controller.dart';
 import 'package:PiliPlus/utils/desktop/window_controller.dart';
-import 'package:PiliPlus/utils/device_utils.dart';
-import 'package:PiliPlus/utils/extension/context_ext.dart';
-import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/mobile_observer.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nativeapi/nativeapi.dart' as nativeapi;
 
@@ -84,7 +72,7 @@ class _MainAppState extends PopScopeState<MainApp>
       }
     }
     if (!_mainController.useSideBar) {
-      _mainController.useBottomNav = MediaQuery.sizeOf(context).isPortrait;
+      _mainController.useBottomNav = MediaQuery.isPortraitOf(context);
     }
   }
 
@@ -247,125 +235,82 @@ class _MainAppState extends PopScopeState<MainApp>
   }
 
   Widget _sideBar() {
-    // icon-only sidebar for every non-portrait layout (desktop window and
-    // phone/tablet landscape alike); portrait keeps the bottom navigation
-    return _desktopSideBar();
-  }
-
-  /// desktop sidebar: icon-only items, order: avatar, home, dynamics, search,
-  /// whisper, mine; settings & account actions moved from MinePage top bar
-  Widget _desktopSideBar() {
-    return Obx(
-      () {
-        final navigationBars = _mainController.navigationBars;
-        final selectedIndex = _mainController.selectedIndex.value;
-
-        void gotoTab(NavigationBarType type) {
-          final index = navigationBars.indexOf(type);
-          if (index != -1) {
-            _mainController.setIndex(index);
-          } else {
-            Get.to(
-              Material(
-                child: ViewSafeArea(
-                  top: true,
-                  child: switch (type) {
-                    .home => const HomePage(),
-                    .dynamics => const DynamicsPage(),
-                    .featured => const FeaturedFeedPage(),
-                    .mine => const MinePage(showBackBtn: true),
-                  },
+    if (_mainController.navigationBars.length > 1) {
+      if (MediaQuery.isTabletOf(context) && _mainController.optTabletNav) {
+        return Padding(
+          padding: const .only(top: 25),
+          child: MediaQuery.removePadding(
+            context: context,
+            removeRight: true,
+            child: Obx(
+              () => DrawerTheme(
+                data: DrawerThemeData(
+                  width:
+                      (_mainController.hideSideBarLabel ? 80 : 130) +
+                      _padding.left,
+                ),
+                child: NavigationDrawer(
+                  /// apply `lib/scripts/navigation_drawer.patch`
+                  flex: 5,
+                  backgroundColor: Colors.transparent,
+                  onDestinationSelected: _mainController.setIndex,
+                  selectedIndex: _mainController.selectedIndex.value,
+                  header: Expanded(flex: 4, child: userAndSearchVertical()),
+                  tilePadding: const .symmetric(vertical: 5, horizontal: 12),
+                  indicatorShape: _mainController.hideSideBarLabel
+                      ? const RoundedRectangleBorder(
+                          borderRadius: .all(.circular(12)),
+                        )
+                      : const RoundedRectangleBorder(
+                          borderRadius: .all(.circular(16)),
+                        ),
+                  children: _mainController.navigationBars
+                      .map(
+                        (e) => NavigationDrawerDestination(
+                          label: _mainController.hideSideBarLabel
+                              ? Semantics(
+                                  label: e.label,
+                                  child: const SizedBox.shrink(),
+                                )
+                              : Text(e.label),
+                          icon: _buildIcon(type: e),
+                          selectedIcon: _buildIcon(
+                            type: e,
+                            selected: true,
+                          ),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
-            );
-          }
-        }
-
-        Widget tabBtn(NavigationBarType type) {
-          final selected =
-              navigationBars.length > 1 &&
-              selectedIndex == navigationBars.indexOf(type);
-          return IconButton(
-            tooltip: type.label,
-            onPressed: () => gotoTab(type),
-            iconSize: 24,
-            icon: _buildIcon(type: type, selected: selected),
-          );
-        }
-
-        final mineController = Get.putOrFind(MineController.new);
-
-        return Container(
-          width: 64 + _padding.left,
-          margin: .only(top: 12 + _padding.top, left: _padding.left),
-          child: Column(
-            children: [
-              userAvatar(
-                colorScheme: _colorScheme,
-                mainController: _mainController,
-              ),
-              tabBtn(.home),
-              tabBtn(.dynamics),
-              if (navigationBars.contains(
-                NavigationBarType.featured,
-              )) ...[
-                tabBtn(.featured),
-              ],
-              IconButton(
-                tooltip: '搜索',
-                onPressed: () => Get.toNamed('/search'),
-                iconSize: 24,
-                icon: const Icon(Icons.search_outlined),
-              ),
-              msgBadge(_mainController),
-              tabBtn(.mine),
-              const Spacer(),
-              IconButton(
-                tooltip: '设置',
-                onPressed: () =>
-                    Get.toNamed('/setting', preventDuplicates: false),
-                iconSize: 24,
-                icon: const Icon(Icons.settings_outlined),
-              ),
-              Obx(
-                () => IconButton(
-                  tooltip: '切换至${mineController.nextThemeType.label}主题',
-                  onPressed: mineController.onChangeTheme,
-                  iconSize: 24,
-                  icon: mineController.themeType.value.icon,
-                ),
-              ),
-              IconButton(
-                tooltip: '切换账号',
-                onPressed: () =>
-                    LoginPageController.switchAccountDialog(context),
-                iconSize: 24,
-                icon: const Icon(Icons.switch_account_outlined),
-              ),
-              Obx(
-                () {
-                  final anonymity = MineController.anonymity.value;
-                  return IconButton(
-                    tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
-                    onPressed: MineController.onChangeAnonymity,
-                    iconSize: 24,
-                    icon: anonymity
-                        ? const Icon(MdiIcons.incognito)
-                        : const Icon(MdiIcons.incognitoOff),
-                  );
-                },
-              ),
-              if (GStorage.reply != null)
-                IconButton(
-                  tooltip: '评论记录',
-                  onPressed: () => Get.toNamed('/myReply'),
-                  iconSize: 24,
-                  icon: const Icon(Icons.message_outlined),
-                ),
-            ],
+            ),
           ),
         );
-      },
+      }
+      return Obx(
+        () => NavigationRail(
+          groupAlignment: 0.5,
+          labelType: _mainController.hideSideBarLabel ? .none : .selected,
+          leading: userAndSearchVertical(),
+          backgroundColor: Colors.transparent,
+          onDestinationSelected: _mainController.setIndex,
+          selectedIndex: _mainController.selectedIndex.value,
+          destinations: _mainController.navigationBars
+              .map(
+                (e) => NavigationRailDestination(
+                  label: Text(e.label),
+                  icon: _buildIcon(type: e),
+                  selectedIcon: _buildIcon(type: e, selected: true),
+                ),
+              )
+              .toList(),
+        ),
+      );
+    }
+    return Container(
+      width: 80,
+      margin: .only(top: 12 + _padding.top, left: _padding.left),
+      child: userAndSearchVertical(),
     );
   }
 
@@ -458,4 +403,21 @@ class _MainAppState extends PopScopeState<MainApp>
         : icon;
   }
 
+  Widget userAndSearchVertical() {
+    return Column(
+      children: [
+        userAvatar(colorScheme: _colorScheme, mainController: _mainController),
+        const SizedBox(height: 8),
+        msgBadge(_mainController),
+        IconButton(
+          tooltip: '搜索',
+          icon: const Icon(
+            Icons.search_outlined,
+            semanticLabel: '搜索',
+          ),
+          onPressed: () => Get.toNamed('/search'),
+        ),
+      ],
+    );
+  }
 }

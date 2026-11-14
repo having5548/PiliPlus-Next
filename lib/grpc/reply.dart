@@ -27,15 +27,17 @@ abstract final class ReplyGrpc {
   //   );
   // }
 
+  static bool _hasGoods(Url url) =>
+      url.hasExtra() &&
+      (url.extra.goodsCmControl == Int64.ONE ||
+          url.extra.hasGoodsItemId() ||
+          url.extra.hasGoodsPrefetchedCache());
+
   // ref BiliRoamingX
-  static bool needRemoveGoodGrpc(ReplyInfo reply) {
+  @pragma('vm:prefer-inline')
+  static bool _needRemoveGoodGrpc(ReplyInfo reply) {
     return (reply.content.urls.isNotEmpty &&
-            reply.content.urls.values.any((url) {
-              return url.hasExtra() &&
-                  (url.extra.goodsCmControl == Int64.ONE ||
-                      url.extra.hasGoodsItemId() ||
-                      url.extra.hasGoodsPrefetchedCache());
-            })) ||
+            reply.content.urls.values.any(_hasGoods)) ||
         reply.content.message.contains(Constants.goodsUrlPrefix);
   }
 
@@ -48,66 +50,45 @@ abstract final class ReplyGrpc {
     if (content.emotes.isNotEmpty || content.pictures.isNotEmpty) return false;
 
     final message = content.message;
+    final length = message.length;
 
-    int start = 0;
+    int i = 0;
+
     if (reply.root != reply.parent) {
-      int? colon;
-      for (int i = 0; i < message.length; i++) {
-        if (message.codeUnitAt(i) == 0x3A /* `:` */ ) {
-          colon = i;
+      i = message.indexOf(':') + 1;
+      if (i <= 0) return false;
+    }
+
+    var hasAt = false;
+    while (i < length) {
+      var c = message.codeUnitAt(i);
+
+      if (c case 0x20 /* ` ` */ || 0x0A /* `\n` */ ) {
+        i++;
+        continue;
+      }
+
+      if (c != 0x40 /* `@` */ ) return false;
+
+      i++;
+      final nameStart = i;
+
+      while (i < length) {
+        c = message.codeUnitAt(i);
+        if (c case 0x20 || 0x40 || 0x0A) {
           break;
         }
+        i++;
       }
-      if (colon == null) return false;
-      start = colon + 1;
+
+      if (i == nameStart) return false;
+      final name = message.substring(nameStart, i);
+      if (!atNameToMid.containsKey(name)) return false;
+
+      hasAt = true;
     }
 
-    bool hasAt = false;
-    final codeUnits = <int>[];
-
-    bool isAt() {
-      if (codeUnits.isEmpty) return false;
-      final name = String.fromCharCodes(codeUnits);
-      codeUnits.clear();
-      return atNameToMid.containsKey(name);
-    }
-
-    for (int i = start; i < message.length; i++) {
-      final codeUnit = message.codeUnitAt(i);
-      switch (codeUnit) {
-        case 0x20: // ` `
-          if (hasAt) {
-            hasAt = false;
-            if (isAt()) {
-              continue;
-            } else {
-              return false;
-            }
-          }
-        case 0x40: // `@`
-          if (hasAt) {
-            if (isAt()) {
-              continue;
-            } else {
-              return false;
-            }
-          }
-          hasAt = true;
-        case 0xA: // `\n`
-          continue;
-        case _:
-          if (hasAt) {
-            codeUnits.add(codeUnit);
-          } else {
-            return false;
-          }
-      }
-    }
-    if (hasAt) {
-      return isAt();
-    }
-    codeUnits.clear();
-    return true;
+    return hasAt;
   }
 
   static bool _blockReplyAtCount(ReplyInfo reply) {
@@ -119,17 +100,17 @@ abstract final class ReplyGrpc {
     return GlobalData().blackMids.contains(reply.mid.toInt()) ||
         _blockReplyAtCount(reply) ||
         _blockAtOnlyReply(reply) ||
-        (enableFilter && replyRegExp.hasMatch(reply.content.message)) ||
-        (antiGoodsReply && needRemoveGoodGrpc(reply));
+        (antiGoodsReply && _needRemoveGoodGrpc(reply)) ||
+        (enableFilter && replyRegExp.hasMatch(reply.content.message));
   }
 
   static Future<LoadingState<MainListReply>> mainList({
-    int type = 1,
+    required int type,
     required int oid,
     Int64? rpid,
     required Mode mode,
     required String? offset,
-    required Int64? cursorNext,
+    // Int64? cursorNext,
   }) async {
     final res = await GrpcReq.request(
       GrpcUrl.mainList,
@@ -137,19 +118,24 @@ abstract final class ReplyGrpc {
         oid: Int64(oid),
         type: Int64(type),
         rpid: rpid,
-        cursor: CursorReq(
-          mode: mode,
-          next: cursorNext,
-        ),
-        // mode: mode,
-        // pagination: offset == null ? null : FeedPagination(offset: offset),
+        // cursor: CursorReq(
+        //   mode: mode,
+        //   next: cursorNext,
+        // ),
+        mode: mode,
+        pagination: offset == null ? null : FeedPagination(offset: offset),
       ),
       MainListReply.fromBuffer,
     );
     if (res case Success(:final response)) {
       // keyword filter
-      if (response.hasUpTop() && needRemoveGrpc(response.upTop)) {
-        response.clearUpTop();
+      if (response.hasUpTop()) {
+        final topReply = response.upTop;
+        if (needRemoveGrpc(topReply)) {
+          response.clearUpTop();
+        } else {
+          topReply.replies.removeWhere(needRemoveGrpc);
+        }
       }
 
       if (response.replies.isNotEmpty) {
@@ -161,17 +147,31 @@ abstract final class ReplyGrpc {
           return hasMatch;
         });
       }
+
+      if (response.replies.isEmpty && !response.hasUpTop()) {
+        final offset = response.paginationReply.nextOffset;
+        if (offset.isNotEmpty && !response.cursor.isEnd) {
+          return mainList(
+            type: type,
+            oid: oid,
+            rpid: rpid,
+            mode: mode,
+            offset: offset,
+          );
+        }
+      }
     }
     return res;
   }
 
   static Future<LoadingState<DetailListReply>> detailList({
-    int type = 1,
+    required int type,
     required int oid,
     required int root,
     required int rpid,
     required Mode mode,
     required String? offset,
+    Map<Int64, ReplyInfo>? removed,
   }) async {
     final res = await GrpcReq.request(
       GrpcUrl.detailList,
@@ -186,11 +186,37 @@ abstract final class ReplyGrpc {
       ),
       DetailListReply.fromBuffer,
     );
-    return res..dataOrNull?.root.replies.removeWhere(needRemoveGrpc);
+    return res
+      ..dataOrNull?.root.replies.removeWhere(
+        removed == null
+            ? needRemoveGrpc
+            : (i) {
+                final flag = needRemoveGrpc(i);
+                if (flag) removed[i.id] = i;
+                return flag;
+              },
+      );
+  }
+
+  static Future<LoadingState<FoldListResp>> foldList({
+    required int type,
+    required int oid,
+    required FeedPagination pagination,
+  }) async {
+    final res = await GrpcReq.request(
+      GrpcUrl.foldList,
+      FoldListReq(
+        oid: Int64(oid),
+        type: Int64(type),
+        pagination: pagination,
+      ),
+      FoldListResp.fromBuffer,
+    );
+    return res..dataOrNull?.replies.removeWhere(needRemoveGrpc);
   }
 
   static Future<LoadingState<DialogListReply>> dialogList({
-    int type = 1,
+    required int type,
     required int oid,
     required int root,
     required int dialog,
@@ -214,7 +240,7 @@ abstract final class ReplyGrpc {
     required int page,
     required SearchItemType itemType,
     required int oid,
-    int type = 1,
+    required int type,
     String? keyword,
   }) {
     return GrpcReq.request(
