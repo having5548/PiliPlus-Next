@@ -11,7 +11,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android%20%7C%20macOS%20%7C%20iOS-2f81f7)](#platforms)
 [![License](https://img.shields.io/badge/license-GPL--3.0-3fb950)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/having5548/PiliPlus-Next?label=latest&color=fb7299)](https://github.com/having5548/PiliPlus-Next/releases)
+[![Release](https://img.shields.io/github/v/release/having5548/PiliPlus-Next?label=latest&color=fb7299)](../../releases)
 
 [中文](README.md) | **English**
 
@@ -116,7 +116,7 @@ The full list and progress live in [docs/BUGFIX.md](docs/BUGFIX.md) (upstream op
 
 ## Download
 
-- Grab a build from [Releases](https://github.com/having5548/PiliPlus-Next/releases)
+- Grab a build from [Releases](../../releases)
 - Or clone the repo and build locally (see below)
 
 ## Building from source

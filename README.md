@@ -11,7 +11,7 @@
 
 [![Platform](https://img.shields.io/badge/平台-Windows%20%7C%20Android%20%7C%20macOS%20%7C%20iOS-2f81f7)](#适配平台)
 [![License](https://img.shields.io/badge/许可证-GPL--3.0-3fb950)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/having5548/PiliPlus-Next?label=最新版本&color=fb7299)](https://github.com/having5548/PiliPlus-Next/releases)
+[![Release](https://img.shields.io/github/v/release/having5548/PiliPlus-Next?label=最新版本&color=fb7299)](../../releases)
 
 **中文** | [English](README.en.md)
 
@@ -120,7 +120,7 @@
 
 ## 下载
 
-- 从本仓库 [Releases](https://github.com/having5548/PiliPlus-Next/releases) 下载
+- 从本仓库 [Releases](../../releases) 下载
 - 或克隆仓库后在本地编译（见下一节）
 
 ## 从源码构建
